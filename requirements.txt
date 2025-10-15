@@ -2,5 +2,4 @@ fastapi
 uvicorn[standard]
 pydantic
 Jinja2
-python-telegram-bot 
-sqlite3
+python-telegram-bot
