@@ -104,6 +104,7 @@ def initialize_db():
 initialize_db()
 
 # --- Логика аутентификации Telegram Web App ---
+# --- Логика аутентификации Telegram Web App ---
 def init_data_auth(init_data: str) -> Dict[str, any]:
     if not init_data:
         raise HTTPException(status_code=401, detail="Auth failed: No init_data provided.")
@@ -117,35 +118,59 @@ def init_data_auth(init_data: str) -> Dict[str, any]:
     except Exception as e:
         logger.error(f"Error creating HMAC key: {e}")
         raise HTTPException(status_code=500, detail="Internal Auth Error.")
+    
+    # 1. Разделяем init_data на отдельные пары "ключ=значение"
+    params = init_data.split('&')
+    
+    # 2. Ищем hash и собираем список сырых данных для проверки
+    data_check = []
+    received_hash = None
+    
+    for param in params:
+        # Игнорируем case, если hash может быть не в конце (хотя обычно в конце)
+        if param.startswith('hash='):
+            # Извлекаем полученный хэш
+            received_hash = param.split('=', 1)[1]
+        else:
+            # Все остальные СЫРЫЕ пары добавляем в список
+            data_check.append(param)
 
+    if not received_hash:
+        raise HTTPException(status_code=401, detail="Auth failed: Missing hash.")
 
-    query_params = parse_qs(unquote(init_data))
-    received_hash_list = query_params.pop('hash', [None])
-    received_hash = received_hash_list[0]
-
-    if not received_hash or not query_params.get('auth_date'):
-        raise HTTPException(status_code=401, detail="Auth failed: Missing hash or auth_date.")
-
-    data_check_string = "\n".join([
-        f"{key}={value[0]}"
-        for key, value in sorted(query_params.items())
-    ])
-
+    # 3. Сортируем сырые пары по ключу (алфавитный порядок)
+    data_check.sort()
+    
+    # 4. Объединяем их через \n (это и есть data_check_string)
+    data_check_string = "\n".join(data_check)
+    
+    # 5. Рассчитываем хэш
     calculated_hash = hmac.new(
         key=key,
-        msg=data_check_string.encode(),
+        msg=data_check_string.encode(), # Используем сырую строку
         digestmod=hashlib.sha256
     ).hexdigest()
 
+    # 6. Сравнение
     if calculated_hash != received_hash:
-        logger.error(f"Auth failed: Hash mismatch! Calculated: {calculated_hash}, Received: {received_hash}")
+        # Это строка будет выведена в лог при ошибке 401
+        logger.error(f"Auth failed: Hash mismatch! Calculated: {calculated_hash}, Received: {received_hash}. String checked: {data_check_string}")
         raise HTTPException(status_code=401, detail="Auth failed: Hash mismatch.")
 
+    # 7. Извлекаем данные пользователя для использования в логике приложения (теперь безопасно)
+    # Используем unquote и parse_qs, чтобы декодировать значения, включая JSON в поле 'user'
+    query_params = parse_qs(unquote(init_data))
     user_data = query_params.get('user', query_params.get('receiver', [None]))[0]
+    
     if not user_data:
         raise HTTPException(status_code=401, detail="Auth failed: User data not found.")
 
     auth_data = json.loads(user_data)
+    
+    # Добавляем start_param для логики рефералов, если он был
+    start_param = query_params.get('tgWebAppStartParam', [None])[0]
+    if start_param:
+        auth_data['start_param'] = start_param
     
     return auth_data
 
