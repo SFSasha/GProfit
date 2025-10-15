@@ -4,8 +4,8 @@ import asyncio
 import sqlite3
 import hmac
 import hashlib
-import json  # Добавлен
-import random  # Добавлен
+import json 
+import random 
 from time import time
 from typing import Optional, Dict, List
 from urllib.parse import parse_qs, unquote
@@ -39,9 +39,9 @@ if not WEBAPP_URL:
     raise ValueError("Не найден WEBAPP_URL в переменных окружения! Сначала задеплойте проект, получите URL и добавьте его.")
 
 # --- ГЛОБАЛЬНЫЕ КОНСТАНТЫ И КОНФИГУРАЦИЯ ---
-DB_PATH = "/data/app.db" # <-- ДОБАВЛЕНО/ИСПРАВЛЕНО
-BOT_USERNAME = os.environ.get("BOT_USERNAME", "star_miner_bot") # <-- ДОБАВЛЕНО
-ADMIN_TG_ID = os.environ.get("ADMIN_TG_ID") # <-- ДОБАВЛЕНО
+DB_PATH = "/data/app.db"
+BOT_USERNAME = os.environ.get("BOT_USERNAME", "star_miner_bot") 
+ADMIN_TG_ID = os.environ.get("ADMIN_TG_ID") 
 
 # === МОДЕЛИ Pydantic ===
 class RequestData(BaseModel):
@@ -82,7 +82,7 @@ def initialize_db():
             dynamite INTEGER DEFAULT 3,
             last_blast INTEGER DEFAULT 0,
             referrer_id INTEGER,
-            referral_earnings REAL DEFAULT 0.0, -- НОВОЕ ПОЛЕ: Доход с рефералов
+            referral_earnings REAL DEFAULT 0.0, 
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
     """)
@@ -103,8 +103,6 @@ def initialize_db():
 # Вызов инициализации БД при запуске
 initialize_db()
 
-# --- Логика аутентификации Telegram Web App ---
-# --- Логика аутентификации Telegram Web App ---
 # --- Логика аутентификации Telegram Web App (ИСПРАВЛЕНО) ---
 def init_data_auth(init_data: str) -> Dict[str, any]:
     if not init_data:
@@ -124,23 +122,34 @@ def init_data_auth(init_data: str) -> Dict[str, any]:
     # 1. Разделяем init_data на отдельные пары "ключ=значение"
     params = init_data.split('&')
     
-    # 2. Ищем hash и собираем список сырых данных для проверки
+    # 2. Ищем hash и собираем список ДЕКОДИРОВАННЫХ данных для проверки
     data_check = []
     received_hash = None
     
     for param in params:
-        if param.startswith('hash='):
-            received_hash = param.split('=', 1)[1]
-        elif param.startswith('signature='): # <--- НОВОЕ: ИСКЛЮЧАЕМ signature
+        # Разбиваем только по первому знаку '='
+        key_value = param.split('=', 1)
+        if len(key_value) != 2:
+            continue
+            
+        key = key_value[0]
+        value = key_value[1]
+
+        if key == 'hash':
+            received_hash = value
+        elif key == 'signature': 
+            # Исключаем 'signature' (если оно присутствует)
             continue
         else:
-            # Все остальные СЫРЫЕ пары добавляем в список
-            data_check.append(param)
+            # КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Декодируем значение перед добавлением в строку для хэширования
+            decoded_value = unquote(value)
+            # Добавляем декодированную пару "ключ=значение"
+            data_check.append(f"{key}={decoded_value}") 
 
     if not received_hash:
         raise HTTPException(status_code=401, detail="Auth failed: Missing hash.")
 
-    # 3. Сортируем сырые пары по ключу (алфавитный порядок)
+    # 3. Сортируем пары по ключу (алфавитный порядок)
     data_check.sort()
     
     # 4. Объединяем их через \n (это и есть data_check_string)
@@ -149,7 +158,7 @@ def init_data_auth(init_data: str) -> Dict[str, any]:
     # 5. Рассчитываем хэш
     calculated_hash = hmac.new(
         key=key,
-        msg=data_check_string.encode(), # Используем сырую строку
+        msg=data_check_string.encode(), 
         digestmod=hashlib.sha256
     ).hexdigest()
 
@@ -158,7 +167,8 @@ def init_data_auth(init_data: str) -> Dict[str, any]:
         logger.error(f"Auth failed: Hash mismatch! Calculated: {calculated_hash}, Received: {received_hash}. String checked: {data_check_string}")
         raise HTTPException(status_code=401, detail="Auth failed: Hash mismatch.")
 
-    # ... оставшаяся часть функции остается без изменений
+    # --- Извлечение данных пользователя после успешного хэш-чека ---
+    # Используем unquote для всей строки, чтобы получить корректно декодированный JSON для 'user'
     query_params = parse_qs(unquote(init_data))
     user_data = query_params.get('user', query_params.get('receiver', [None]))[0]
     
@@ -175,8 +185,8 @@ def init_data_auth(init_data: str) -> Dict[str, any]:
 
 
 # --- ЛОГИКА БД (ПОЛЬЗОВАТЕЛЬ) ---
-INITIAL_STAR_BONUS = 2.0  # Приветственный бонус
-MIN_WITHDRAW = 50.0 # Минимальный вывод
+INITIAL_STAR_BONUS = 2.0 
+MIN_WITHDRAW = 50.0 
 
 def get_or_create_user(user_id: int, username: str, start_parameter: Optional[str] = None):
     conn = get_db_connection()
@@ -217,7 +227,7 @@ def is_admin(user_id: int) -> bool:
         return False
     return str(user_id) == ADMIN_TG_ID
 
-# --- Настройка бота (КОД ИЗ ВАШЕГО ПОСЛЕДНЕГО ФАЙЛА) ---
+# --- Настройка бота ---
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Отправляет приветственное сообщение с кнопкой для запуска Web App."""
@@ -323,7 +333,7 @@ async def blast_mine(data: RequestData):
 
     current_stars, current_dynamite, last_blast, referrer_id = result
 
-    MIN_BLAST_INTERVAL = 15 # секунд (уменьшено для тестирования, можно изменить)
+    MIN_BLAST_INTERVAL = 15 # секунд
     current_time = int(time())
 
     if current_dynamite <= 0:
