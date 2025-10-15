@@ -2,5 +2,5 @@ fastapi
 uvicorn[standard]
 pydantic
 Jinja2
-python-telegram-bot  <-- ЭТОТ ПАКЕТ ВЫЗЫВАЕТ ОШИБКУ
+python-telegram-bot 
 sqlite3
