@@ -9,10 +9,10 @@ from urllib.parse import parse_qs, unquote
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.templating import Jinja2Templates # Используем Jinja2
 from pydantic import BaseModel
 import uvicorn
 
-import telegram
 from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, ContextTypes
 
@@ -27,9 +27,7 @@ logger = logging.getLogger(__name__)
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 WEBAPP_URL = os.environ.get("WEBAPP_URL")
 
-# Используем Volume Railway. Файл БД будет храниться в /data/app.db
 DB_PATH = "/data/app.db"
-# Используется в качестве заглушки для реферальной ссылки
 BOT_USERNAME = os.environ.get("BOT_USERNAME", "star_miner_bot") 
 
 if not TELEGRAM_TOKEN:
@@ -55,13 +53,10 @@ def get_db_connection():
 
 def init_db():
     """Инициализирует базу данных, создавая таблицы."""
-    # Убедимся, что директория /data существует
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # Таблица пользователей
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY,
@@ -74,14 +69,13 @@ def init_db():
         )
     """)
     
-    # Таблица заявок на вывод
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS withdrawals (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER,
             username TEXT,
             amount REAL,
-            status TEXT DEFAULT 'pending', -- pending, processing, completed, rejected
+            status TEXT DEFAULT 'pending', 
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
@@ -99,33 +93,27 @@ def get_user(user_id: int, initial_data: Optional[Dict] = None):
     user_row = cursor.fetchone()
     
     if user_row:
-        # User exists
         keys = ["id", "username", "first_name", "stars", "dynamite", "referrer_id", "referral_earnings"]
         user_data = dict(zip(keys, user_row))
         conn.close()
         return user_data
     else:
-        # User does not exist, create new
         new_stars = 0.0
-        new_dynamite = 1 # Стартовая взрывчатка
+        new_dynamite = 1 
         
-        # Обработка реферального параметра
         referrer_id = None
         if initial_data and initial_data.get('start_param'):
             try:
                 referrer_id = int(initial_data['start_param'])
-                
-                # Логика начисления 1 динамита рефереру (проверка, что реферер существует)
                 cursor.execute("SELECT id FROM users WHERE id = ?", (referrer_id,))
                 if cursor.fetchone():
                      cursor.execute("UPDATE users SET dynamite = dynamite + 1 WHERE id = ?", (referrer_id,))
                      conn.commit()
-                     logger.info(f"User {user_id} referred by {referrer_id}. Dynamite credited.")
                 else:
-                    referrer_id = None # Отключаем реферера, если он не существует
+                    referrer_id = None
 
             except ValueError:
-                pass # start_param не является числом
+                pass 
 
         username = initial_data.get('username') if initial_data else None
         first_name = initial_data.get('first_name') if initial_data else None
@@ -158,20 +146,15 @@ def get_user_referrals_count(user_id: int) -> int:
     return count
 
 def check_init_data_auth(init_data: str) -> Optional[Dict]:
-    """
-    Имитация проверки initData (только парсинг). 
-    ВАЖНО: В продакшене используйте криптографическую проверку hash!
-    """
+    """Имитация проверки initData (только парсинг)."""
     if not init_data:
         raise HTTPException(status_code=401, detail="Отсутствуют данные инициализации.")
 
-    # Декодирование и парсинг initData
     parsed_data = parse_qs(init_data)
     user_data_str = parsed_data.get('user', [None])[0]
     start_param = parsed_data.get('start_param', [None])[0]
     
     if not user_data_str:
-        # Эту ошибку могут вызвать боты, но не реальные пользователи. Пропускаем.
         logger.warning("User data missing in initData.")
         raise HTTPException(status_code=401, detail="Данные пользователя не найдены.")
 
@@ -197,8 +180,6 @@ def check_init_data_auth(init_data: str) -> Optional[Dict]:
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Отправляет приветственное сообщение с кнопкой для запуска Web App и реферальным параметром."""
     user_id = update.effective_user.id
-    
-    # Передаем ID пользователя как реферальный параметр
     start_url = f"{WEBAPP_URL}?start={user_id}"
 
     keyboard = [
@@ -218,33 +199,30 @@ async def setup_bot():
     application = Application.builder().token(TELEGRAM_TOKEN).build()
     application.add_handler(CommandHandler("start", start))
     
-    # Запускаем бота в фоновом режиме
     await application.initialize()
     await application.start()
-    await application.updater.start_polling(poll_interval=1.0) # Устанавливаем poll_interval для Railway
+    await application.updater.start_polling(poll_interval=1.0)
     logger.info("Telegram бот запущен...")
 
 # === НАСТРОЙКА FASTAPI (веб-сервер) ===
 app = FastAPI()
+# Убедитесь, что папка `templates` существует в корне вашего проекта
+templates = Jinja2Templates(directory="templates") 
+
 
 @app.on_event("startup")
 async def startup_event():
     """При старте сервера инициализируем БД и запускаем бота."""
     init_db()
-    # Создаем задачу для запуска бота в фоне
     asyncio.create_task(setup_bot())
 
 @app.get("/", response_class=HTMLResponse)
-async def serve_app():
-    """Отдает статический index.html."""
-    try:
-        with open("index.html", "r", encoding="utf-8") as f:
-            html_content = f.read()
-            # Вставляем юзернейм бота в HTML
-            html_content = html_content.replace("YOUR_BOT_USERNAME_HERE", BOT_USERNAME)
-        return html_content
-    except FileNotFoundError:
-        return HTMLResponse("<html><body><h1>index.html не найден. Убедитесь, что он есть в корне проекта.</h1></body></html>", status_code=404)
+async def read_root(request: Request):
+    """Отдает главную HTML-страницу веб-приложения, используя Jinja2."""
+    return templates.TemplateResponse(
+        "index.html", 
+        {"request": request, "BOT_USERNAME": BOT_USERNAME} # Передаем BOT_USERNAME в шаблон
+    )
 
 # === API ЭНДПОИНТЫ ===
 
@@ -285,7 +263,6 @@ async def blast_chest(request: Request):
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # 1. Проверка взрывчатки
     cursor.execute("SELECT dynamite, stars, referrer_id FROM users WHERE id = ?", (user_id,))
     result = cursor.fetchone()
     
@@ -299,12 +276,10 @@ async def blast_chest(request: Request):
         conn.close()
         raise HTTPException(status_code=400, detail="Недостаточно взрывчатки.")
 
-    # 2. Логика приза
     prizes = [0.1, 0.3, 0.5, 1.0, 3.0, 10.0]
     import random
     prize = random.choice(prizes)
     
-    # 3. Начисление рефереру (10% комиссии)
     referral_commission = prize * 0.10
     
     if referrer_id:
@@ -312,11 +287,9 @@ async def blast_chest(request: Request):
             cursor.execute("""
                 UPDATE users SET stars = stars + ?, referral_earnings = referral_earnings + ? WHERE id = ?
             """, (referral_commission, referral_commission, referrer_id))
-            logger.info(f"Referral commission {referral_commission} credited to {referrer_id}")
         except Exception as e:
             logger.error(f"Failed to credit referrer {referrer_id}: {e}")
             
-    # 4. Обновление БД для текущего пользователя
     new_stars = current_stars + prize
     new_dynamite = current_dynamite - 1
     
@@ -355,7 +328,6 @@ async def request_withdraw(request: Request, data: WithdrawRequest):
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # 1. Проверка баланса
     cursor.execute("SELECT stars FROM users WHERE id = ?", (user_id,))
     result = cursor.fetchone()
     if not result:
@@ -368,12 +340,10 @@ async def request_withdraw(request: Request, data: WithdrawRequest):
         conn.close()
         raise HTTPException(status_code=400, detail="Недостаточно средств на балансе.")
 
-    # 2. Вычитание средств и создание заявки
     new_stars = current_stars - amount
     
     cursor.execute("UPDATE users SET stars = ? WHERE id = ?", (new_stars, user_id))
     
-    # В заявку падает сумма и юзернейм/ID
     cursor.execute("""
         INSERT INTO withdrawals (user_id, username, amount)
         VALUES (?, ?, ?)
@@ -392,7 +362,5 @@ async def request_withdraw(request: Request, data: WithdrawRequest):
 
 # --- Основная точка входа для Railway ---
 if __name__ == "__main__":
-    # Railway предоставит переменную PORT
     port = int(os.environ.get("PORT", 8000))
-    # Запуск uvicorn без запуска бота, так как setup_bot() вызывается в startup_event
     uvicorn.run(app, host="0.0.0.0", port=port)
