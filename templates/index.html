@@ -2,97 +2,223 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Моё TG Web App</title>
-    <!-- Подключаем скрипт от Telegram -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Star Miner App</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
+        :root {
+            --tg-bg: var(--tg-theme-bg-color, #18222d);
+            --tg-text: var(--tg-theme-text-color, #ffffff);
+            --tg-hint: var(--tg-theme-hint-color, #91a8c0);
+            --tg-link: var(--tg-theme-link-color, #65b8ff);
+            --tg-button: var(--tg-theme-button-color, #5288c1);
+            --tg-button-text: var(--tg-theme-button-text-color, #ffffff);
+            --tg-secondary-bg: var(--tg-theme-secondary-bg-color, #232e3c);
+            --gold-color-light: #ffd700;
+            --gold-color-dark: #ffb300;
+            --gold-gradient: linear-gradient(145deg, var(--gold-color-light), var(--gold-color-dark));
+            --dynamite-color: #e74c3c;
+            --dynamite-gradient: linear-gradient(145deg, #ff6b6b, var(--dynamite-color));
+        }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            background-color: var(--tg-theme-bg-color, #ffffff);
-            color: var(--tg-theme-text-color, #000000);
-            margin: 0;
-            padding: 15px;
-            text-align: center;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            margin: 0; padding: 0;
+            background-color: var(--tg-bg);
+            color: var(--tg-text);
+            display: flex; flex-direction: column;
+            min-height: 100vh;
+            overflow-x: hidden;
+            max-width: 100vw;
         }
-        .container {
-            max-width: 390px;
-            margin: 0 auto;
-        }
-        h1 {
-            font-size: 24px;
-        }
-        p {
-            font-size: 16px;
-        }
-        .user-info {
-            background-color: var(--tg-theme-secondary-bg-color, #f0f0f0);
-            padding: 10px;
-            border-radius: 8px;
-            margin-top: 20px;
-            word-wrap: break-word;
-        }
-        button {
-            background-color: var(--tg-theme-button-color, #007bff);
-            color: var(--tg-theme-button-text-color, #ffffff);
-            border: none;
-            padding: 12px 20px;
-            border-radius: 8px;
-            font-size: 16px;
-            cursor: pointer;
-            width: 100%;
-            margin-top: 20px;
-        }
+        .container { padding: 20px; flex-grow: 1; overflow-y: auto; max-width: 600px; margin: 0 auto; width: 100%; padding-bottom: 70px; }
+        .card { background-color: var(--tg-secondary-bg); border-radius: 12px; padding: 15px; margin-bottom: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .balance-info { display: flex; justify-content: space-around; text-align: center; }
+        .stat-item h3 { margin: 0; font-size: 2em; font-weight: 700; color: var(--gold-color-light); }
+        .stat-item p { margin: 5px 0 0 0; font-size: 0.8em; color: var(--tg-hint); }
+        .welcome-message { text-align: center; font-size: 1.1em; margin-bottom: 20px; }
+        .btn { display: block; width: 100%; padding: 15px; border: none; border-radius: 10px; font-size: 1.1em; font-weight: 600; cursor: pointer; transition: all 0.2s; text-align: center; color: var(--tg-button-text); text-decoration: none; }
+        .btn-gold { background: var(--gold-gradient); color: #1a1a1a; box-shadow: 0 4px 0 var(--gold-color-dark); }
+        .btn-gold:active { box-shadow: 0 1px 0 var(--gold-color-dark); transform: translateY(3px); }
+        .btn-primary { background-color: var(--tg-button); color: var(--tg-button-text); box-shadow: 0 4px 0 #3b6ba0; }
+        .btn-primary:active { box-shadow: 0 1px 0 #3b6ba0; transform: translateY(3px); }
+        .blast-area { text-align: center; margin: 40px 0; }
+        #blastButton { width: 250px; height: 250px; border-radius: 50%; font-size: 1.8em; background: var(--dynamite-gradient); color: var(--tg-button-text); border: 8px solid #ff9393; box-shadow: 0 10px 0 #b93e32, 0 0 20px rgba(255,107,107,0.7); cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 0 auto; transition: all 0.1s; }
+        #blastButton:active { box-shadow: 0 4px 0 #b93e32, 0 0 15px rgba(255,107,107,0.5); transform: translateY(6px) scale(0.98); }
+        #blastButton span { font-size: 0.5em; color: #f7f7f7; margin-top: 5px; }
+        .withdraw-form input[type="number"] { width: 100%; padding: 12px; margin-bottom: 15px; border: 2px solid var(--tg-hint); border-radius: 8px; background-color: var(--tg-bg); color: var(--tg-text); font-size: 1em; outline: none; transition: border-color 0.2s; }
+        .withdraw-form input[type="number"]:focus { border-color: var(--tg-link); }
+        .withdraw-form label { display: block; margin-bottom: 8px; color: var(--tg-hint); font-size: 0.9em; }
+        .hint-text { color: var(--tg-hint); font-size: 0.9em; margin-top: 10px; }
+        .user-id-display { font-size: 0.8em; color: var(--tg-hint); text-align: center; margin-top: 5px; padding: 5px; background-color: var(--tg-bg); border-radius: 5px; word-break: break-all; }
+        .referral-share { display: flex; align-items: center; background-color: var(--tg-bg); padding: 10px; border-radius: 8px; border: 1px dashed var(--tg-hint); }
+        .referral-share code { flex-grow: 1; overflow-x: auto; white-space: nowrap; font-size: 0.9em; color: var(--tg-link); padding-right: 10px; }
+        .referral-share button { background: none; border: none; color: var(--tg-link); cursor: pointer; padding: 5px; font-size: 1.2em; }
+        .nav-bar { position: fixed; bottom: 0; left: 0; right: 0; height: 60px; background-color: var(--tg-secondary-bg); border-top: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: space-around; z-index: 10; }
+        .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 0.8em; color: var(--tg-hint); cursor: pointer; text-decoration: none; user-select: none; }
+        .nav-item.active { color: var(--tg-link); }
+        .icon { width: 24px; height: 24px; fill: currentColor; margin-bottom: 3px; }
+        .section-content { display: none; }
+        .section-content.active { display: block; }
+        #prizeMessage { text-align: center; margin-top: 20px; padding: 10px; border-radius: 8px; background-color: rgba(255,215,0,0.1); color: var(--gold-color-light); font-weight: 600; transition: opacity 0.3s ease-out; opacity: 0; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>👋 Привет из Web App!</h1>
-        <p>Это веб-страница, запущенная прямо внутри Telegram.</p>
-
-        <div id="userInfo" class="user-info">
-            Загрузка данных пользователя...
+        <div class="welcome-message" id="welcomeMessageEl">Загрузка...</div>
+        <div class="card balance-info">
+            <div class="stat-item"><h3 id="starsBalance">0.00</h3><p>Звезды (★)</p></div>
+            <div class="stat-item"><h3 id="dynamiteCount">0</h3><p>Динамит (🧨)</p></div>
         </div>
 
-        <button id="closeButton">Закрыть приложение</button>
+        <div id="miningSection" class="section-content active">
+            <div class="blast-area">
+                <button id="blastButton"><span style="font-size: 2em;">🧨</span>Взорвать<span>(Спишется 1 Динамит)</span></button>
+            </div>
+            <div id="prizeMessage"></div>
+            <div class="card">
+                <h2>Что дальше?</h2>
+                <p class="hint-text">Каждый взрыв использует 1 единицу Динамита и дает случайное количество Звезд (★).</p>
+                <button class="btn btn-primary" onclick="showSection('friendsSection', this)">Пригласить друзей</button>
+            </div>
+        </div>
+
+        <div id="friendsSection" class="section-content">
+            <div class="card">
+                <h2>Мои Рефералы</h2>
+                <div class="balance-info"><div class="stat-item"><h3 id="friendsCount">0</h3><p>Друзей</p></div><div class="stat-item"><h3 id="referralEarnings">0.00</h3><p>Доход (★)</p></div></div>
+                <label>Ваша реферальная ссылка:</label>
+                <div class="referral-share">
+                    <code id="referralLinkEl">Загрузка...</code>
+                    <button onclick="copyReferralLink()">📋</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="withdrawSection" class="section-content">
+            <div class="card withdraw-form">
+                <h2>Заявка на вывод Звезд (★)</h2>
+                <div class="user-id-display"><span id="telegramUserIdDisplay">Ваш Telegram ID: Не получен</span></div>
+                <label for="withdrawAmount">Сумма вывода (★)</label>
+                <input type="number" id="withdrawAmount" placeholder="10.00" min="10.0" step="0.01">
+                <button class="btn btn-gold" id="withdrawButton" onclick="withdraw()">Подать заявку</button>
+                <p class="hint-text" id="withdrawError" style="color: #e74c3c; display: none;">Ошибка.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="nav-bar">
+        <div class="nav-item active" onclick="showSection('miningSection', this)">🪓<br>Добыча</div>
+        <div class="nav-item" onclick="showSection('friendsSection', this)">👥<br>Друзья</div>
+        <div class="nav-item" onclick="showSection('withdrawSection', this)">💰<br>Вывод</div>
     </div>
 
     <script>
-        // Инициализируем Telegram Web App
         const tg = window.Telegram.WebApp;
+        const apiUrl = '';
+        const safeUser = tg.initDataUnsafe && tg.initDataUnsafe.user ? tg.initDataUnsafe.user : {};
+        const userState = {
+            stars: 0.0,
+            dynamite: 0,
+            friendsCount: 0,
+            referralEarnings: 0.0,
+            user: safeUser,
+            initData: tg.initData,
+            botUsername: 'star_miner_bot',
+        };
 
-        // Расширяем приложение на весь экран
-        tg.expand();
-        
-        // Меняем цвет шапки
-        tg.setHeaderColor('#007bff');
-
-        const userInfoDiv = document.getElementById('userInfo');
-        const closeButton = document.getElementById('closeButton');
-
-        // Проверяем, что объект WebApp доступен
-        if (tg.initDataUnsafe) {
-            const user = tg.initDataUnsafe.user;
-            if (user) {
-                // Отображаем информацию о пользователе
-                userInfoDiv.innerHTML = `
-                    <strong>ID:</strong> ${user.id}<br>
-                    <strong>Имя:</strong> ${user.first_name || ''}<br>
-                    <strong>Фамилия:</strong> ${user.last_name || ''}<br>
-                    <strong>Username:</strong> @${user.username || 'не указан'}
-                `;
-            } else {
-                 userInfoDiv.innerText = 'Не удалось получить данные пользователя.';
+        async function apiPost(endpoint, data = {}) {
+            const headers = { 'Content-Type': 'application/json' };
+            // 🔧 исправление — добавляем init_data в тело
+            if (!data.init_data && userState.initData) {
+                data.init_data = userState.initData;
             }
-        } else {
-             userInfoDiv.innerText = 'Это приложение должно быть открыто внутри Telegram.';
+            const response = await fetch(apiUrl + endpoint, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(data)
+            });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.detail || 'Ошибка API');
+            return result;
         }
 
-        // Обработчик для кнопки закрытия
-        closeButton.addEventListener('click', () => {
-            // Отправляем данные боту (опционально) и закрываем приложение
-            tg.sendData("Пользователь закрыл приложение!");
-            tg.close();
+        const welcomeMessageEl = document.getElementById('welcomeMessageEl');
+        const starsBalanceEl = document.getElementById('starsBalance');
+        const dynamiteCountEl = document.getElementById('dynamiteCount');
+        const friendsCountEl = document.getElementById('friendsCount');
+        const referralEarningsEl = document.getElementById('referralEarnings');
+        const referralLinkEl = document.getElementById('referralLinkEl');
+        const blastButton = document.getElementById('blastButton');
+        const prizeMessageEl = document.getElementById('prizeMessage');
+        const withdrawAmountInput = document.getElementById('withdrawAmount');
+        const withdrawButton = document.getElementById('withdrawButton');
+        const telegramUserIdDisplay = document.getElementById('telegramUserIdDisplay');
+
+        function updateUI() {
+            starsBalanceEl.textContent = userState.stars.toFixed(2);
+            dynamiteCountEl.textContent = userState.dynamite;
+            friendsCountEl.textContent = userState.friendsCount;
+            referralEarningsEl.textContent = userState.referralEarnings.toFixed(2);
+            telegramUserIdDisplay.textContent = userState.user.username ? `@${userState.user.username}` : `ID: ${userState.user.id}`;
+            blastButton.disabled = userState.dynamite <= 0;
+        }
+
+        async function loadInitialData() {
+            if (!userState.initData) {
+                welcomeMessageEl.textContent = 'Откройте приложение в Telegram';
+                return;
+            }
+            try {
+                const data = await apiPost('/api/v1/data');
+                userState.stars = data.user_data.stars;
+                userState.dynamite = data.user_data.dynamite;
+                userState.friendsCount = data.referrals_count;
+                userState.referralEarnings = data.user_data.referral_earnings;
+                userState.botUsername = data.bot_username;
+                welcomeMessageEl.textContent = `Привет, ${userState.user.first_name || 'друг'}!`;
+                referralLinkEl.textContent = `https://t.me/${userState.botUsername}?start=${userState.user.id}`;
+            } catch (e) {
+                welcomeMessageEl.textContent = 'Ошибка загрузки: ' + e.message;
+            } finally {
+                updateUI();
+            }
+        }
+
+        async function blast() {
+            if (userState.dynamite <= 0) return;
+            const data = await apiPost('/api/v1/chest/blast');
+            userState.stars = data.new_stars;
+            userState.dynamite = data.new_dynamite;
+            prizeMessageEl.textContent = `💥 Вы добыли ${data.prize_amount.toFixed(2)} ★!`;
+            prizeMessageEl.style.opacity = 1;
+            setTimeout(()=>prizeMessageEl.style.opacity=0,3000);
+            updateUI();
+        }
+
+        async function withdraw() {
+            const amount = parseFloat(withdrawAmountInput.value);
+            if (!amount || amount < 10) return alert('Минимум 10★');
+            const data = await apiPost('/api/v1/withdraw/request', { amount });
+            alert(data.message || 'Заявка отправлена');
+            userState.stars = data.new_stars;
+            updateUI();
+        }
+
+        function copyReferralLink() {
+            navigator.clipboard.writeText(referralLinkEl.textContent);
+            tg.showPopup({ title: 'Скопировано', message: 'Реферальная ссылка скопирована.', buttons: [{ text: 'OK', type: 'default' }] });
+        }
+
+        function showSection(id, el) {
+            document.querySelectorAll('.section-content').forEach(s => s.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            el.classList.add('active');
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadInitialData();
+            blastButton.addEventListener('click', blast);
         });
     </script>
 </body>
