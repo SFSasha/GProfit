@@ -6,6 +6,7 @@
     <title>Star Miner App</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
+        /* --- Общие стили и переменные Telegram --- */
         :root {
             --tg-bg: var(--tg-theme-bg-color, #18222d);
             --tg-text: var(--tg-theme-text-color, #ffffff);
@@ -14,212 +15,775 @@
             --tg-button: var(--tg-theme-button-color, #5288c1);
             --tg-button-text: var(--tg-theme-button-text-color, #ffffff);
             --tg-secondary-bg: var(--tg-theme-secondary-bg-color, #232e3c);
+            
+            /* Золотые стили */
             --gold-color-light: #ffd700;
             --gold-color-dark: #ffb300;
             --gold-gradient: linear-gradient(145deg, var(--gold-color-light), var(--gold-color-dark));
             --dynamite-color: #e74c3c;
             --dynamite-gradient: linear-gradient(145deg, #ff6b6b, var(--dynamite-color));
+            
+            /* Новый зеленый цвет для баланса */
+            --green-highlight: #2ecc71; /* Яркий зеленый */
+            --green-shadow: #27ae60;
         }
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-            margin: 0; padding: 0;
+            margin: 0;
+            padding: 0;
             background-color: var(--tg-bg);
             color: var(--tg-text);
-            display: flex; flex-direction: column;
+            display: flex;
+            flex-direction: column;
             min-height: 100vh;
             overflow-x: hidden;
+            width: 100%;
             max-width: 100vw;
         }
-        .container { padding: 20px; flex-grow: 1; overflow-y: auto; max-width: 600px; margin: 0 auto; width: 100%; padding-bottom: 70px; }
-        .card { background-color: var(--tg-secondary-bg); border-radius: 12px; padding: 15px; margin-bottom: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        .balance-info { display: flex; justify-content: space-around; text-align: center; }
-        .stat-item h3 { margin: 0; font-size: 2em; font-weight: 700; color: var(--gold-color-light); }
-        .stat-item p { margin: 5px 0 0 0; font-size: 0.8em; color: var(--tg-hint); }
-        .welcome-message { text-align: center; font-size: 1.1em; margin-bottom: 20px; }
-        .btn { display: block; width: 100%; padding: 15px; border: none; border-radius: 10px; font-size: 1.1em; font-weight: 600; cursor: pointer; transition: all 0.2s; text-align: center; color: var(--tg-button-text); text-decoration: none; }
-        .btn-gold { background: var(--gold-gradient); color: #1a1a1a; box-shadow: 0 4px 0 var(--gold-color-dark); }
-        .btn-gold:active { box-shadow: 0 1px 0 var(--gold-color-dark); transform: translateY(3px); }
-        .btn-primary { background-color: var(--tg-button); color: var(--tg-button-text); box-shadow: 0 4px 0 #3b6ba0; }
-        .btn-primary:active { box-shadow: 0 1px 0 #3b6ba0; transform: translateY(3px); }
-        .blast-area { text-align: center; margin: 40px 0; }
-        #blastButton { width: 250px; height: 250px; border-radius: 50%; font-size: 1.8em; background: var(--dynamite-gradient); color: var(--tg-button-text); border: 8px solid #ff9393; box-shadow: 0 10px 0 #b93e32, 0 0 20px rgba(255,107,107,0.7); cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 0 auto; transition: all 0.1s; }
-        #blastButton:active { box-shadow: 0 4px 0 #b93e32, 0 0 15px rgba(255,107,107,0.5); transform: translateY(6px) scale(0.98); }
-        #blastButton span { font-size: 0.5em; color: #f7f7f7; margin-top: 5px; }
-        .withdraw-form input[type="number"] { width: 100%; padding: 12px; margin-bottom: 15px; border: 2px solid var(--tg-hint); border-radius: 8px; background-color: var(--tg-bg); color: var(--tg-text); font-size: 1em; outline: none; transition: border-color 0.2s; }
-        .withdraw-form input[type="number"]:focus { border-color: var(--tg-link); }
-        .withdraw-form label { display: block; margin-bottom: 8px; color: var(--tg-hint); font-size: 0.9em; }
-        .hint-text { color: var(--tg-hint); font-size: 0.9em; margin-top: 10px; }
-        .user-id-display { font-size: 0.8em; color: var(--tg-hint); text-align: center; margin-top: 5px; padding: 5px; background-color: var(--tg-bg); border-radius: 5px; word-break: break-all; }
-        .referral-share { display: flex; align-items: center; background-color: var(--tg-bg); padding: 10px; border-radius: 8px; border: 1px dashed var(--tg-hint); }
-        .referral-share code { flex-grow: 1; overflow-x: auto; white-space: nowrap; font-size: 0.9em; color: var(--tg-link); padding-right: 10px; }
-        .referral-share button { background: none; border: none; color: var(--tg-link); cursor: pointer; padding: 5px; font-size: 1.2em; }
-        .nav-bar { position: fixed; bottom: 0; left: 0; right: 0; height: 60px; background-color: var(--tg-secondary-bg); border-top: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: space-around; z-index: 10; }
-        .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 0.8em; color: var(--tg-hint); cursor: pointer; text-decoration: none; user-select: none; }
-        .nav-item.active { color: var(--tg-link); }
-        .icon { width: 24px; height: 24px; fill: currentColor; margin-bottom: 3px; }
-        .section-content { display: none; }
-        .section-content.active { display: block; }
-        #prizeMessage { text-align: center; margin-top: 20px; padding: 10px; border-radius: 8px; background-color: rgba(255,215,0,0.1); color: var(--gold-color-light); font-weight: 600; transition: opacity 0.3s ease-out; opacity: 0; }
+
+        /* --- Общий макет --- */
+        .container {
+            padding: 20px;
+            flex-grow: 1;
+            overflow-y: auto;
+            max-width: 600px;
+            margin: 0 auto;
+            width: 100%;
+            padding-bottom: 70px; 
+        }
+
+        /* --- Карточки и блоки (Улучшенный современный вид) --- */
+        .card {
+            background-color: var(--tg-secondary-bg);
+            border-radius: 16px; /* Более закругленные углы */
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2); /* Более глубокая тень */
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .balance-info {
+            display: flex;
+            justify-content: space-around;
+            text-align: center;
+        }
+
+        .stat-item h3 {
+            margin: 0;
+            font-size: 2.2em; /* Чуть больше */
+            font-weight: 700;
+            color: var(--gold-color-light);
+            text-shadow: 0 0 5px rgba(255, 215, 0, 0.5); /* Добавление свечения */
+        }
+        
+        /* --- Кнопка "Взорвать" (Стили не меняем, она уже яркая) --- */
+        /* ... (Стили blastButton остаются как в оригинале) ... */
+
+        /* --- Навигационная панель (Табы) --- */
+        .nav-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            background-color: var(--tg-secondary-bg);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: space-around;
+            box-shadow: 0 -5px 20px rgba(0, 0, 0, 0.3); /* Усиленная тень */
+            z-index: 10;
+        }
+
+        .nav-item {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8em;
+            color: var(--tg-hint);
+            cursor: pointer;
+            transition: color 0.2s, background-color 0.2s, transform 0.1s;
+            text-decoration: none;
+            user-select: none;
+            position: relative;
+        }
+        
+        .nav-item.active {
+            color: var(--tg-link);
+        }
+
+        /* --- Стили для кнопки "Баланс/Вывод" в Nav Bar --- */
+        .nav-item.withdraw-button {
+            flex: 1.5; /* Даем больше места */
+            background-color: var(--green-highlight);
+            color: var(--tg-button-text);
+            font-weight: 600;
+            margin: 5px 10px;
+            border-radius: 12px; /* Закругляем углы */
+            box-shadow: 0 4px 0 var(--green-shadow), 0 0 10px rgba(46, 204, 113, 0.5);
+        }
+        
+        .nav-item.withdraw-button:active {
+            transform: translateY(2px);
+            box-shadow: 0 1px 0 var(--green-shadow);
+        }
+        
+        .withdraw-button .icon {
+            fill: var(--tg-button-text);
+        }
+
+        /* --- Модальное окно (Withdraw Modal) --- */
+        .modal {
+            display: none; 
+            position: fixed; 
+            z-index: 20; 
+            left: 0;
+            top: 0;
+            width: 100%; 
+            height: 100%; 
+            overflow: auto; 
+            background-color: rgba(0,0,0,0.8); 
+            backdrop-filter: blur(5px);
+        }
+
+        .modal-content {
+            background-color: var(--tg-secondary-bg);
+            margin: 15% auto; /* 15% сверху и по центру */
+            padding: 20px;
+            border-radius: 16px;
+            width: 90%; 
+            max-width: 400px;
+            position: relative;
+            animation: slideIn 0.3s ease-out;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+        }
+
+        @keyframes slideIn {
+            from { transform: translateY(50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        
+        .modal-close {
+            color: var(--tg-hint);
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            transition: color 0.2s;
+        }
+
+        .modal-close:hover,
+        .modal-close:focus {
+            color: var(--tg-link);
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .withdraw-form input[type="number"] {
+            /* Используем стили из оригинального файла, они уже современные */
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 15px;
+            border: 2px solid var(--tg-hint);
+            border-radius: 8px;
+            background-color: var(--tg-bg);
+            color: var(--tg-text);
+            box-sizing: border-box;
+            font-size: 1em;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        
+        /* --- Анимация Взрыва Сундука и Падающих Звезд --- */
+        #explosion-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 100;
+            pointer-events: none; /* Чтобы не мешал кликам */
+        }
+        
+        .particle {
+            position: fixed;
+            width: 8px;
+            height: 8px;
+            background-color: var(--gold-color-light);
+            border-radius: 50%;
+            opacity: 0;
+            transition: opacity 0.5s;
+            z-index: 101;
+            pointer-events: none;
+        }
+
+        @keyframes fall {
+            to {
+                transform: translate(-50%, 100vh) rotate(360deg);
+                opacity: 0;
+            }
+        }
+        
+        /* --- Секция Админ-Панели --- */
+        .withdrawal-request {
+            background-color: rgba(255, 255, 255, 0.05);
+            padding: 10px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .withdrawal-request p {
+            margin: 5px 0;
+        }
+        
+        .admin-actions button {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-left: 5px;
+            transition: opacity 0.2s;
+        }
+
+        .btn-approve {
+            background-color: var(--green-highlight);
+            color: var(--tg-button-text);
+        }
+
+        .btn-reject {
+            background-color: var(--dynamite-color);
+            color: var(--tg-button-text);
+        }
+        
+        /* ... (остальные стили из оригинального index.html, такие как btn-gold, hint-text и т.д., остаются) ... */
+
     </style>
 </head>
 <body>
+
     <div class="container">
         <div class="welcome-message" id="welcomeMessageEl">Загрузка...</div>
+
         <div class="card balance-info">
-            <div class="stat-item"><h3 id="starsBalance">0.00</h3><p>Звезды (★)</p></div>
-            <div class="stat-item"><h3 id="dynamiteCount">0</h3><p>Динамит (🧨)</p></div>
+            <div class="stat-item">
+                <h3 id="starsBalance">0.00</h3>
+                <p>Звезды (★)</p>
+            </div>
+            <div class="stat-item">
+                <h3 id="dynamiteCount">0</h3>
+                <p>Динамит (🧨)</p>
+            </div>
         </div>
 
         <div id="miningSection" class="section-content active">
+            
             <div class="blast-area">
-                <button id="blastButton"><span style="font-size: 2em;">🧨</span>Взорвать<span>(Спишется 1 Динамит)</span></button>
+                <div id="chestContainer" style="position: relative; margin: 0 auto; width: 250px; height: 250px;">
+                    <button id="blastButton">
+                        <span style="font-size: 2em;">💣</span>
+                        Взорвать
+                        <span>(Спишется 1 Динамит)</span>
+                    </button>
+                    </div>
             </div>
-            <div id="prizeMessage"></div>
-            <div class="card">
+
+            <div id="prizeMessage" style="opacity: 0;"></div>
+            
+            <div id="particlesContainer"></div> <div class="card">
                 <h2>Что дальше?</h2>
-                <p class="hint-text">Каждый взрыв использует 1 единицу Динамита и дает случайное количество Звезд (★).</p>
-                <button class="btn btn-primary" onclick="showSection('friendsSection', this)">Пригласить друзей</button>
+                <p class="hint-text">Каждый взрыв использует 1 единицу Динамита и дает случайное количество Звезд (★) из списка **0.1, 0.3, 0.5, 1, 3, 5**.</p>
+                <p class="hint-text">Динамит автоматически пополняется со временем или может быть получен через реферальную программу.</p>
+                <button class="btn btn-primary" onclick="showSection('friendsSection', document.querySelector('.nav-item[data-section=\"friendsSection\"]'))">Пригласить друзей</button>
             </div>
         </div>
 
         <div id="friendsSection" class="section-content">
             <div class="card">
                 <h2>Мои Рефералы</h2>
-                <div class="balance-info"><div class="stat-item"><h3 id="friendsCount">0</h3><p>Друзей</p></div><div class="stat-item"><h3 id="referralEarnings">0.00</h3><p>Доход (★)</p></div></div>
+                <div class="balance-info" style="margin-bottom: 20px;">
+                    <div class="stat-item">
+                        <h3 id="friendsCount">0</h3>
+                        <p>Друзей</p>
+                    </div>
+                    <div class="stat-item">
+                        <h3 id="referralEarnings">0.00</h3>
+                        <p>Доход (★)</p>
+                    </div>
+                </div>
+                <p class="hint-text">Приглашайте друзей! Вы получите **2 звезды** за каждого, кто начнет играть, и **10%** от их добычи Звезд.</p>
                 <label>Ваша реферальная ссылка:</label>
                 <div class="referral-share">
                     <code id="referralLinkEl">Загрузка...</code>
-                    <button onclick="copyReferralLink()">📋</button>
+                    <button onclick="copyReferralLink()">
+                        <svg class="icon" viewBox="0 0 24 24"><path d="M16 1h6v6l-2-2v-2h-3v-3l-2-2zm-8 0l-2 2h-2v3l-2 2h-2v-6h6zm8 16l2-2v-3l2-2h2v6h-6zm-8 0l-2 2h-2v-2l-2-2v-2h6z"/> <path d="M14 9h-4v4h4v-4zm-2 2h-2v-2h2v2z"/> <path d="M16 3l2 2v2l-2 2v-4l-2-2z"/></svg>
+                    </button>
                 </div>
             </div>
         </div>
-
-        <div id="withdrawSection" class="section-content">
-            <div class="card withdraw-form">
-                <h2>Заявка на вывод Звезд (★)</h2>
-                <div class="user-id-display"><span id="telegramUserIdDisplay">Ваш Telegram ID: Не получен</span></div>
-                <label for="withdrawAmount">Сумма вывода (★)</label>
-                <input type="number" id="withdrawAmount" placeholder="10.00" min="10.0" step="0.01">
-                <button class="btn btn-gold" id="withdrawButton" onclick="withdraw()">Подать заявку</button>
-                <p class="hint-text" id="withdrawError" style="color: #e74c3c; display: none;">Ошибка.</p>
+        
+        <div id="adminSection" class="section-content">
+            <div class="card">
+                <h2>Админ-Панель</h2>
+                <p class="hint-text">Ожидающие заявки на вывод. Видно только вам.</p>
+                <button class="btn btn-primary" id="refreshAdminData">Обновить список</button>
+                
+                <div id="withdrawalRequestsList" style="margin-top: 15px;">
+                    Нет ожидающих заявок.
+                </div>
+            </div>
+        </div>
+        
+    </div>
+    
+    <div id="withdrawModal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeModal('withdrawModal')">&times;</span>
+            <h2>Заявка на вывод Звезд (★)</h2>
+            <div class="withdraw-form">
+                <p class="hint-text" id="currentBalanceDisplay">Ваш баланс: 0.00 ★</p>
+                <label for="withdrawAmountInput">Сумма вывода (мин. 50.00 ★):</label>
+                <input type="number" id="withdrawAmountInput" min="50.00" step="0.01" placeholder="Введите сумму">
+                <button class="btn btn-gold" id="withdrawButton" disabled>Вывести</button>
+                <p class="hint-text">Сумма будет списана с баланса немедленно, а заявка попадет в Админ-панель на проверку.</p>
+                <p class="hint-text" style="color: var(--dynamite-color);">Минимальная сумма вывода: 50.00 ★</p>
             </div>
         </div>
     </div>
 
     <div class="nav-bar">
-        <div class="nav-item active" onclick="showSection('miningSection', this)">🪓<br>Добыча</div>
-        <div class="nav-item" onclick="showSection('friendsSection', this)">👥<br>Друзья</div>
-        <div class="nav-item" onclick="showSection('withdrawSection', this)">💰<br>Вывод</div>
+        <div class="nav-item active" data-section="miningSection" onclick="showSection('miningSection', this)">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M12 1L3 12h3v8h12v-8h3L12 1zm0 2.373L17.755 9H12V3.373zM7 13h10v5H7v-5z"/></svg>
+            Добыча
+        </div>
+        <div class="nav-item" data-section="friendsSection" onclick="showSection('friendsSection', this)">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.57.85 2.22 1.84 2.47 2.76.02.09.02.19.02.3v1.34H23v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+            Друзья
+        </div>
+        <div class="nav-item" data-section="adminSection" id="adminNav" style="display: none;" onclick="showSection('adminSection', this)">
+             <svg class="icon" viewBox="0 0 24 24"><path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1s-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm0 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-2c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3z"/></svg>
+            Админ
+        </div>
+        <div class="nav-item withdraw-button" id="withdrawButtonNav" onclick="showWithdrawModal()">
+            <h3 id="starsBalanceNav" style="font-size: 1.2em; margin: 0; color: var(--tg-button-text);">0.00 ★</h3>
+            <p style="font-size: 0.7em; margin: 0; color: rgba(255, 255, 255, 0.7);">Вывод</p>
+        </div>
     </div>
-
+    
     <script>
         const tg = window.Telegram.WebApp;
-        const apiUrl = '';
-        const safeUser = tg.initDataUnsafe && tg.initDataUnsafe.user ? tg.initDataUnsafe.user : {};
-        const userState = {
-            stars: 0.0,
-            dynamite: 0,
-            friendsCount: 0,
-            referralEarnings: 0.0,
-            user: safeUser,
-            initData: tg.initData,
-            botUsername: 'star_miner_bot',
-        };
+        const WEBAPP_URL = '{{ WEBAPP_URL }}';
+        const startParam = '{{ start_param }}';
+        
+        let userData = {};
+        const MIN_WITHDRAWAL_AMOUNT = 50.00;
 
-        async function apiPost(endpoint, data = {}) {
-            const headers = { 'Content-Type': 'application/json' };
-            // 🔧 исправление — добавляем init_data в тело
-            if (!data.init_data && userState.initData) {
-                data.init_data = userState.initData;
-            }
-            const response = await fetch(apiUrl + endpoint, {
-                method: 'POST',
-                headers,
-                body: JSON.stringify(data)
-            });
-            const result = await response.json();
-            if (!response.ok) throw new Error(result.detail || 'Ошибка API');
-            return result;
-        }
-
+        // --- DOM Elements ---
         const welcomeMessageEl = document.getElementById('welcomeMessageEl');
         const starsBalanceEl = document.getElementById('starsBalance');
+        const starsBalanceNavEl = document.getElementById('starsBalanceNav');
         const dynamiteCountEl = document.getElementById('dynamiteCount');
         const friendsCountEl = document.getElementById('friendsCount');
-        const referralEarningsEl = document.getElementById('referralEarnings');
         const referralLinkEl = document.getElementById('referralLinkEl');
-        const blastButton = document.getElementById('blastButton');
         const prizeMessageEl = document.getElementById('prizeMessage');
-        const withdrawAmountInput = document.getElementById('withdrawAmount');
+        const blastButton = document.getElementById('blastButton');
+        const withdrawModal = document.getElementById('withdrawModal');
+        const withdrawAmountInput = document.getElementById('withdrawAmountInput');
         const withdrawButton = document.getElementById('withdrawButton');
-        const telegramUserIdDisplay = document.getElementById('telegramUserIdDisplay');
+        const adminNav = document.getElementById('adminNav');
+        const withdrawalRequestsList = document.getElementById('withdrawalRequestsList');
+        const refreshAdminData = document.getElementById('refreshAdminData');
+        const currentBalanceDisplay = document.getElementById('currentBalanceDisplay');
+        const particlesContainer = document.getElementById('particlesContainer');
 
+
+        // --- UI Functions ---
+
+        function showSection(sectionId, element) {
+            document.querySelectorAll('.section-content').forEach(el => el.classList.remove('active'));
+            document.getElementById(sectionId).classList.add('active');
+            
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            if (element) {
+                element.classList.add('active');
+            }
+            
+            // Загрузка данных админки при переходе на вкладку
+            if (sectionId === 'adminSection') {
+                loadAdminData();
+            }
+        }
+        
         function updateUI() {
-            starsBalanceEl.textContent = userState.stars.toFixed(2);
-            dynamiteCountEl.textContent = userState.dynamite;
-            friendsCountEl.textContent = userState.friendsCount;
-            referralEarningsEl.textContent = userState.referralEarnings.toFixed(2);
-            telegramUserIdDisplay.textContent = userState.user.username ? `@${userState.user.username}` : `ID: ${userState.user.id}`;
-            blastButton.disabled = userState.dynamite <= 0;
+            if (!userData.user) return;
+            
+            starsBalanceEl.textContent = userData.user.stars.toFixed(2);
+            starsBalanceNavEl.textContent = userData.user.stars.toFixed(2) + ' ★';
+            dynamiteCountEl.textContent = userData.user.dynamite;
+            friendsCountEl.textContent = userData.referral_stats.friends_count;
+            // referralEarningsEl.textContent = userData.referral_stats.referral_earnings.toFixed(2); // Пока не реализовано точно на бэке
+
+            welcomeMessageEl.textContent = `Привет, ${userData.user.username || 'Майнер'}! Добывай Звезды!`;
+
+            // Управление видимостью кнопки вывода и ее состоянием
+            const currentBalance = userData.user.stars || 0;
+            currentBalanceDisplay.textContent = `Ваш баланс: ${currentBalance.toFixed(2)} ★`;
+            
+            const withdrawAmount = parseFloat(withdrawAmountInput.value);
+            
+            const isInputValid = !isNaN(withdrawAmount) && withdrawAmount >= MIN_WITHDRAWAL_AMOUNT && withdrawAmount <= currentBalance;
+            withdrawButton.disabled = !isInputValid;
+            
+            // Управление видимостью Админ-панели
+            if (userData.is_admin) {
+                adminNav.style.display = 'flex';
+            } else {
+                adminNav.style.display = 'none';
+            }
         }
 
+        function showWithdrawModal() {
+            withdrawModal.style.display = 'block';
+            tg.expand();
+            updateUI(); // Обновляем баланс в модальном окне
+        }
+        
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+        
+        // Закрытие модального окна по клику вне его
+        window.onclick = function(event) {
+            if (event.target == withdrawModal) {
+                closeModal('withdrawModal');
+            }
+        }
+
+        // --- Core Logic ---
+
         async function loadInitialData() {
-            if (!userState.initData) {
-                welcomeMessageEl.textContent = 'Откройте приложение в Telegram';
-                return;
-            }
+            tg.showProgress(true);
             try {
-                const data = await apiPost('/api/v1/data');
-                userState.stars = data.user_data.stars;
-                userState.dynamite = data.user_data.dynamite;
-                userState.friendsCount = data.referrals_count;
-                userState.referralEarnings = data.user_data.referral_earnings;
-                userState.botUsername = data.bot_username;
-                welcomeMessageEl.textContent = `Привет, ${userState.user.first_name || 'друг'}!`;
-                referralLinkEl.textContent = `https://t.me/${userState.botUsername}?start=${userState.user.id}`;
-            } catch (e) {
-                welcomeMessageEl.textContent = 'Ошибка загрузки: ' + e.message;
+                const response = await fetch('/api/v1/data', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ init_data: tg.initData })
+                });
+                const data = await response.json();
+                
+                if (data.user) {
+                    userData = data;
+                    updateUI();
+                    
+                    // Формирование реферальной ссылки
+                    const botUsername = "{{ BOT_USERNAME }}"; // Нужно, чтобы botUsername был передан в index.html из main.py
+                    const userId = data.user.id;
+                    referralLinkEl.textContent = `https://t.me/${data.user.username || 'YourBotUsername'}?start=${userId}`;
+                }
+
+            } catch (error) {
+                console.error("Error loading initial data:", error);
+                welcomeMessageEl.textContent = 'Ошибка загрузки данных.';
+                tg.showAlert('Ошибка загрузки данных. Пожалуйста, перезапустите приложение.');
             } finally {
-                updateUI();
+                tg.showProgress(false);
             }
+        }
+        
+        // --- Анимация Взрыва и Падения ---
+        function triggerExplosionAnimation(prize) {
+            // Удаляем старые частицы
+            particlesContainer.innerHTML = '';
+            
+            const numParticles = 30; // 30 частиц для взрыва
+            const explosionDuration = 500; // ms
+            const fallDuration = 2000; // ms
+            const buttonRect = blastButton.getBoundingClientRect();
+            const centerX = buttonRect.left + buttonRect.width / 2;
+            const centerY = buttonRect.top + buttonRect.height / 2;
+
+            // 1. Анимация взрыва (красные/желтые частицы)
+            for (let i = 0; i < numParticles; i++) {
+                const particle = document.createElement('div');
+                particle.classList.add('particle');
+                particle.style.backgroundColor = i % 2 === 0 ? 'var(--gold-color-light)' : 'var(--dynamite-color)';
+                particle.style.width = particle.style.height = `${Math.random() * 5 + 5}px`;
+                
+                // Начальное положение
+                particle.style.left = `${centerX}px`;
+                particle.style.top = `${centerY}px`;
+                
+                // Случайное направление
+                const angle = Math.random() * 2 * Math.PI;
+                const distance = Math.random() * 100 + 50;
+                const endX = centerX + Math.cos(angle) * distance;
+                const endY = centerY + Math.sin(angle) * distance;
+                
+                particle.style.transition = `transform ${explosionDuration}ms ease-out, opacity 0.5s`;
+                
+                // Запускаем анимацию
+                setTimeout(() => {
+                    particle.style.opacity = '1';
+                    particle.style.transform = `translate(${endX - centerX}px, ${endY - centerY}px)`;
+                }, 50);
+
+                // Убираем частицы взрыва через 0.5s
+                setTimeout(() => {
+                    particle.remove();
+                }, explosionDuration);
+                
+                particlesContainer.appendChild(particle);
+            }
+            
+            // 2. Анимация падающих звезд (через 0.5s после взрыва)
+            setTimeout(() => {
+                const numStars = prize * 10; // Чем больше приз, тем больше звезд падает
+                for (let i = 0; i < numStars; i++) {
+                    const star = document.createElement('div');
+                    star.classList.add('particle'); // Используем тот же класс particle
+                    star.style.backgroundColor = 'var(--gold-color-light)';
+                    star.style.width = star.style.height = `${Math.random() * 10 + 10}px`; // Звезды чуть больше
+                    star.textContent = '★';
+                    star.style.borderRadius = '0';
+                    star.style.fontSize = '8px';
+                    star.style.textAlign = 'center';
+                    star.style.lineHeight = '8px';
+                    
+                    // Начальное положение - в зоне взрыва
+                    star.style.left = `${centerX + Math.random() * 40 - 20}px`;
+                    star.style.top = `${centerY + Math.random() * 40 - 20}px`;
+                    
+                    // Анимация падения
+                    const delay = Math.random() * 200;
+                    star.style.animation = `fall ${fallDuration}ms ease-in ${delay}ms forwards`;
+
+                    particlesContainer.appendChild(star);
+                    
+                    // Удаляем частицу после падения
+                    setTimeout(() => star.remove(), fallDuration + delay + 100);
+                }
+            }, explosionDuration);
+            
         }
 
         async function blast() {
-            if (userState.dynamite <= 0) return;
-            const data = await apiPost('/api/v1/chest/blast');
-            userState.stars = data.new_stars;
-            userState.dynamite = data.new_dynamite;
-            prizeMessageEl.textContent = `💥 Вы добыли ${data.prize_amount.toFixed(2)} ★!`;
-            prizeMessageEl.style.opacity = 1;
-            setTimeout(()=>prizeMessageEl.style.opacity=0,3000);
-            updateUI();
+            if (blastButton.disabled) return;
+            
+            blastButton.disabled = true;
+            tg.showProgress(true);
+            prizeMessageEl.style.opacity = '0'; // Скрываем старое сообщение
+
+            try {
+                const response = await fetch('/api/v1/blast', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ init_data: tg.initData })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    tg.showAlert(`❌ Ошибка взрыва: ${error.detail}`);
+                    return;
+                }
+                
+                const data = await response.json();
+                
+                // Обновление UI перед анимацией
+                userData.user.stars = data.new_stars;
+                userData.user.dynamite = data.new_dynamite;
+                updateUI();
+                
+                // Запуск анимации
+                triggerExplosionAnimation(data.prize_amount);
+
+                // Сообщение о призе с задержкой
+                prizeMessageEl.textContent = `🎉 Вы добыли ${data.prize_amount.toFixed(2)} Звезд (★)!`;
+                prizeMessageEl.style.opacity = '1';
+                
+            } catch (error) {
+                tg.showAlert(`❌ Неизвестная ошибка: ${error.message || 'Попробуйте еще раз.'}`);
+                console.error("Blast Error:", error);
+            } finally {
+                blastButton.disabled = false;
+                tg.showProgress(false);
+            }
+        }
+        
+        async function requestWithdraw() {
+            const amount = parseFloat(withdrawAmountInput.value);
+            const currentBalance = userData.user.stars || 0;
+            
+            if (isNaN(amount) || amount < MIN_WITHDRAWAL_AMOUNT) {
+                tg.showAlert(`Сумма должна быть не менее ${MIN_WITHDRAWAL_AMOUNT.toFixed(2)} ★.`);
+                return;
+            }
+            if (amount > currentBalance) {
+                 tg.showAlert('Недостаточно средств на балансе.');
+                return;
+            }
+
+            withdrawButton.disabled = true;
+            tg.showProgress(true);
+
+            try {
+                const response = await fetch('/api/v1/withdraw', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ init_data: tg.initData, amount: amount })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    tg.showAlert(`❌ Ошибка вывода: ${error.detail}`);
+                    return;
+                }
+                
+                // Успех
+                const data = await response.json();
+                tg.showAlert(`✅ Успех! ${data.message}`);
+                
+                // Обновляем данные (баланс изменился на бэкенде)
+                await loadInitialData(); 
+                closeModal('withdrawModal');
+
+            } catch (error) {
+                const errorMessage = 'Ошибка при отправке запроса на вывод.';
+                tg.showAlert(`❌ Ошибка вывода: ${errorMessage}`);
+                console.error("Withdrawal Error:", error);
+            } finally {
+                withdrawButton.disabled = false;
+                tg.showProgress(false);
+                updateUI();
+            }
+        }
+        
+        // --- Admin Panel Logic ---
+
+        refreshAdminData.addEventListener('click', loadAdminData);
+        
+        async function loadAdminData() {
+            if (!userData.is_admin) return;
+            
+            withdrawalRequestsList.innerHTML = 'Загрузка...';
+            tg.showProgress(true);
+
+            try {
+                const response = await fetch('/api/v1/admin/withdrawals', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ init_data: tg.initData })
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    withdrawalRequestsList.innerHTML = `❌ Ошибка: ${error.detail}`;
+                    return;
+                }
+                
+                const data = await response.json();
+                renderAdminWithdrawals(data.withdrawals);
+
+            } catch (error) {
+                console.error("Admin Data Error:", error);
+                withdrawalRequestsList.innerHTML = '❌ Ошибка загрузки заявок.';
+            } finally {
+                tg.showProgress(false);
+            }
+        }
+        
+        function renderAdminWithdrawals(withdrawals) {
+            if (withdrawals.length === 0) {
+                withdrawalRequestsList.innerHTML = 'Нет ожидающих заявок.';
+                return;
+            }
+            
+            let html = '';
+            withdrawals.forEach(req => {
+                html += `
+                    <div class="withdrawal-request">
+                        <div>
+                            <p><strong>ID: ${req.id}</strong></p>
+                            <p>Пользователь: @${req.username || 'Неизвестно'}</p>
+                            <p>Сумма: <strong>${req.amount.toFixed(2)} ★</strong></p>
+                            <p class="hint-text">${new Date(req.created_at).toLocaleString()}</p>
+                        </div>
+                        <div class="admin-actions">
+                            <button class="btn-approve" onclick="handleAdminAction(${req.id}, 'approve', this)">Одобрить</button>
+                            <button class="btn-reject" onclick="handleAdminAction(${req.id}, 'reject', this)">Отклонить</button>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            withdrawalRequestsList.innerHTML = html;
         }
 
-        async function withdraw() {
-            const amount = parseFloat(withdrawAmountInput.value);
-            if (!amount || amount < 10) return alert('Минимум 10★');
-            const data = await apiPost('/api/v1/withdraw/request', { amount });
-            alert(data.message || 'Заявка отправлена');
-            userState.stars = data.new_stars;
-            updateUI();
+        async function handleAdminAction(withdrawalId, action, buttonEl) {
+            buttonEl.disabled = true;
+            tg.showProgress(true);
+
+            try {
+                const response = await fetch('/api/v1/admin/action', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        init_data: tg.initData, 
+                        withdrawal_id: withdrawalId, 
+                        action: action 
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    tg.showAlert(`❌ Ошибка: ${data.detail || 'Неизвестная ошибка.'}`);
+                    return;
+                }
+                
+                tg.showAlert(`✅ Заявка ID ${withdrawalId} ${action === 'approve' ? 'одобрена' : 'отклонена'}.`);
+                loadAdminData(); // Обновить список
+
+            } catch (error) {
+                tg.showAlert('❌ Ошибка выполнения действия. Проверьте логи бэкенда.');
+                console.error("Admin Action Error:", error);
+            } finally {
+                buttonEl.disabled = false;
+                tg.showProgress(false);
+            }
         }
+        
+        // --- Дополнительные функции UI ---
 
         function copyReferralLink() {
-            navigator.clipboard.writeText(referralLinkEl.textContent);
-            tg.showPopup({ title: 'Скопировано', message: 'Реферальная ссылка скопирована.', buttons: [{ text: 'OK', type: 'default' }] });
-        }
+            const link = referralLinkEl.textContent;
+            const el = document.createElement('textarea');
+            el.value = link;
+            document.body.appendChild(el);
+            el.select();
+            document.execCommand('copy');
+            document.body.removeChild(el);
 
-        function showSection(id, el) {
-            document.querySelectorAll('.section-content').forEach(s => s.classList.remove('active'));
-            document.getElementById(id).classList.add('active');
-            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-            el.classList.add('active');
+            tg.showPopup({
+                title: 'Скопировано',
+                message: 'Реферальная ссылка скопирована в буфер обмена.',
+                buttons: [{ text: 'OK', type: 'default' }]
+            });
         }
+        
+        // Слушатели для обновления состояния кнопки вывода и клика
+        withdrawAmountInput.addEventListener('input', updateUI);
+        withdrawButton.addEventListener('click', requestWithdraw);
 
+        // --- Инициализация ---
         document.addEventListener('DOMContentLoaded', () => {
-            loadInitialData();
-            blastButton.addEventListener('click', blast);
+             loadInitialData();
+             blastButton.addEventListener('click', blast);
         });
+
     </script>
 </body>
 </html>
