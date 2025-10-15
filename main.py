@@ -4,8 +4,8 @@ import asyncio
 import sqlite3
 import hmac
 import hashlib
-import json             # <-- КРИТИЧЕСКИЙ ФИКС: Добавлен импорт json
-import random           # <-- КРИТИЧЕСКИЙ ФИКС: Добавлен импорт random
+import json # <-- ФИКС: Добавлен отсутствующий импорт
+import random # <-- ФИКС: Добавлен отсутствующий импорт
 from time import time
 from typing import Optional, Dict, List
 from urllib.parse import parse_qs, unquote
@@ -16,11 +16,11 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 import uvicorn
 
-from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, ContextTypes
+# Telegram imports are usually not needed if you only run FastAPI
+# from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup
+# from telegram.ext import Application, CommandHandler, ContextTypes
 
 # --- Настройка логирования ---
-# Установим уровень INFO для вывода критических сообщений в Railway
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO 
@@ -41,14 +41,14 @@ if not TELEGRAM_TOKEN:
     raise ValueError("Не найден TELEGRAM_TOKEN в переменных окружения!")
 if not WEBAPP_URL:
     raise ValueError("Не найден WEBAPP_URL в переменных окружения!")
-if not ADMIN_TG_ID:
-    logger.warning("ADMIN_TG_ID не установлен. Доступ к админ-панели будет отключен.")
+# if not ADMIN_TG_ID: # Оставляем предупреждение, как было
+#     logger.warning("ADMIN_TG_ID не установлен. Доступ к админ-панели будет отключен.")
 
 
 # === МОДЕЛИ Pydantic ===
 
 class RequestData(BaseModel):
-    init_data: str # Строка инициализации, отправленная клиентом
+    init_data: str 
 
 class WithdrawRequest(BaseModel):
     init_data: str
@@ -58,70 +58,60 @@ class BlastResponse(BaseModel):
     prize_amount: float
     new_stars: float
     new_dynamite: int
+    referrer_bonus: float = 0.0 # Добавлено для фронтенда
 
 class AdminAction(BaseModel):
     init_data: str
     withdrawal_id: int
-    action: str # 'approve' или 'reject'
-
+    action: str 
 
 # === ИНИЦИАЛИЗАЦИЯ БД и УТИЛИТЫ ===
 
 def get_db_connection():
-    # Создаем директорию для БД, если ее нет (важно для Docker/Railway)
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
 
 def initialize_db():
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        # Таблица пользователей
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY,
-                username TEXT,
-                stars REAL DEFAULT 0.0,
-                dynamite INTEGER DEFAULT 3,
-                last_blast INTEGER DEFAULT 0,
-                referrer_id INTEGER,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        """)
-        # Таблица заявок на вывод
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS withdrawals (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER,
-                username TEXT,
-                amount REAL,
-                status TEXT DEFAULT 'pending', -- pending, approved, rejected
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        """)
-        conn.commit()
-        conn.close()
-        logger.info("Database initialized successfully.")
-    except Exception as e:
-        logger.error(f"Error during database initialization: {e}")
-        # Вызовем исключение, если БД не инициализируется, чтобы избежать дальнейших сбоев
-        raise
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    # Таблица пользователей
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY,
+            username TEXT,
+            stars REAL DEFAULT 0.0,
+            dynamite INTEGER DEFAULT 3,
+            last_blast INTEGER DEFAULT 0,
+            referrer_id INTEGER,
+            referral_earnings REAL DEFAULT 0.0, -- НОВОЕ ПОЛЕ: Доход с рефералов
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+    # Таблица заявок на вывод
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS withdrawals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            username TEXT,
+            amount REAL,
+            status TEXT DEFAULT 'pending', -- pending, approved, rejected
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+    conn.commit()
+    conn.close()
 
 # Вызов инициализации БД при запуске
 initialize_db()
 
 # --- Логика аутентификации Telegram Web App ---
 def init_data_auth(init_data: str) -> Dict[str, any]:
-    """
-    Проверяет hash, подписанный Telegram, и возвращает данные пользователя.
-    """
     if not init_data:
         raise HTTPException(status_code=401, detail="Auth failed: No init_data provided.")
 
     try:
-        # 1. Секретный ключ, производный от TELEGRAM_TOKEN
         key = hmac.new(
             key=TELEGRAM_TOKEN.strip().encode(),
             msg=b"WebAppData",
@@ -132,62 +122,47 @@ def init_data_auth(init_data: str) -> Dict[str, any]:
         raise HTTPException(status_code=500, detail="Internal Auth Error.")
 
 
-    # 2. Парсинг и декодирование
     query_params = parse_qs(unquote(init_data)) 
-    
-    # Извлечение хеша
     received_hash_list = query_params.pop('hash', [None])
     received_hash = received_hash_list[0]
 
     if not received_hash or not query_params.get('auth_date'):
         raise HTTPException(status_code=401, detail="Auth failed: Missing hash or auth_date.")
 
-    # 3. Формирование строки для проверки хеша
     data_check_string = "\n".join([
         f"{key}={value[0]}"
         for key, value in sorted(query_params.items())
     ])
 
-    # 4. Вычисляем HMAC-SHA256
     calculated_hash = hmac.new(
         key=key,
         msg=data_check_string.encode(),
         digestmod=hashlib.sha256
     ).hexdigest()
     
-    # --- ДОБАВЛЕНО ДЛЯ ДЕБАГА --- (Поможет диагностировать 401 ошибку)
     logger.info("--- AUTH DEBUG START ---")
     logger.info(f"DATA CHECK STRING: '{data_check_string[:100]}...'")
     logger.info(f"CALCULATED HASH: {calculated_hash}")
     logger.info(f"RECEIVED HASH: {received_hash}")
     logger.info("--- AUTH DEBUG END ---")
-    # -----------------------------
 
-    # 5. Сравнение хешей
     if calculated_hash != received_hash:
         logger.error(f"Auth failed: Hash mismatch! Calculated: {calculated_hash}, Received: {received_hash}")
         raise HTTPException(status_code=401, detail="Auth failed: Hash mismatch.")
 
-    # 6. Извлечение данных пользователя
     user_data = query_params.get('user', query_params.get('receiver', [None]))[0]
     if not user_data:
         raise HTTPException(status_code=401, detail="Auth failed: User data not found.")
         
-    try:
-        auth_data = json.loads(user_data) # <-- ТЕПЕРЬ 'json' ОПРЕДЕЛЕН
-    except json.JSONDecodeError as e:
-        logger.error(f"Auth failed: JSON decode error on user data: {e}. Data: {user_data[:100]}...")
-        raise HTTPException(status_code=401, detail="Auth failed: Invalid user data format.")
+    auth_data = json.loads(user_data) # 'json' теперь импортирован
     
-    # Проверка актуальности (5 минут) - опционально, но рекомендуется
-    # auth_date = int(query_params['auth_date'][0])
-    # if time() - auth_date > 300:
-    #     raise HTTPException(status_code=401, detail="Auth failed: Data too old ( > 5 min).")
-
     return auth_data
 
 
 # --- ЛОГИКА БД (ПОЛЬЗОВАТЕЛЬ) ---
+
+# КОНСТАНТА: Приветственный бонус
+INITIAL_STAR_BONUS = 2.0 
 
 def get_or_create_user(user_id: int, username: str, start_parameter: Optional[str] = None):
     conn = get_db_connection()
@@ -207,17 +182,17 @@ def get_or_create_user(user_id: int, username: str, start_parameter: Optional[st
             if cursor.fetchone():
                 referrer_id = potential_referrer_id
                 
-        # Вставка нового пользователя
+        # Вставка нового пользователя с бонусом
         cursor.execute("""
-            INSERT INTO users (id, username, stars, dynamite, referrer_id)
-            VALUES (?, ?, ?, ?, ?)
-        """, (user_id, username, 0.0, 3, referrer_id))
+            INSERT INTO users (id, username, stars, dynamite, referrer_id, referral_earnings)
+            VALUES (?, ?, ?, ?, ?, 0.0)
+        """, (user_id, username, INITIAL_STAR_BONUS, 3, referrer_id)) # НОВОЕ: 2.0 звезды
         conn.commit()
         
-        # Повторный запрос для получения полных данных (включая default values)
+        # Повторный запрос для получения полных данных
         cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
         user = cursor.fetchone()
-        logger.info(f"New user created: {username} ({user_id}). Referrer: {referrer_id}")
+        logger.info(f"New user created: {username} ({user_id}). Referrer: {referrer_id}, Bonus: {INITIAL_STAR_BONUS} ★")
         
     conn.close()
     return dict(user)
@@ -225,12 +200,10 @@ def get_or_create_user(user_id: int, username: str, start_parameter: Optional[st
 
 # --- API FastAPI ---
 app = FastAPI()
-templates = Jinja2Templates(directory=".") # Шаблоны из текущей папки
+templates = Jinja2Templates(directory=".") 
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
-    """Отдача HTML-страницы приложения."""
-    # Получение параметра 'tgWebAppStartParam' из URL (если пользователь пришел по реф. ссылке)
     start_param = request.query_params.get("tgWebAppStartParam")
     
     return templates.TemplateResponse("index.html", {"request": request, "start_param": start_param})
@@ -238,10 +211,8 @@ async def index(request: Request):
 
 @app.post("/api/v1/data")
 async def get_user_data(data: RequestData):
-    """Получение всех данных пользователя и реферальной информации."""
     init_data = data.init_data 
     
-    # 1. Аутентификация
     try:
         auth_data = init_data_auth(init_data)
     except HTTPException as e:
@@ -251,18 +222,15 @@ async def get_user_data(data: RequestData):
     user_id = auth_data['id']
     username = auth_data.get('username') or f"id_{user_id}"
     
-    # 2. Получение или создание пользователя
-    # start_parameter не доступен напрямую в init_data, поэтому регистрация реферера 
-    # должна происходить через команду /start в боте.
     user_data = get_or_create_user(user_id, username)
     
-    # 3. Подсчет рефералов
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT COUNT(*) FROM users WHERE referrer_id = ?", (user_id,))
     referrals_count = cursor.fetchone()[0]
     conn.close()
     
+    # user_data теперь включает referral_earnings
     return JSONResponse(content={
         "user_data": user_data,
         "referrals_count": referrals_count,
@@ -273,7 +241,6 @@ async def get_user_data(data: RequestData):
 
 @app.post("/api/v1/blast", response_model=BlastResponse)
 async def blast_mine(data: RequestData):
-    """Выполнение взрыва (майнинг)."""
     init_data = data.init_data
     
     try:
@@ -287,15 +254,15 @@ async def blast_mine(data: RequestData):
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # 1. Проверка динамита и кулдауна (блокировка на уровне БД)
-    cursor.execute("SELECT stars, dynamite, last_blast FROM users WHERE id = ?", (user_id,))
+    # 1. Проверка динамита и кулдауна
+    cursor.execute("SELECT stars, dynamite, last_blast, referrer_id FROM users WHERE id = ?", (user_id,))
     result = cursor.fetchone()
     
     if not result:
         conn.close()
         raise HTTPException(status_code=404, detail="Пользователь не найден.")
         
-    current_stars, current_dynamite, last_blast = result
+    current_stars, current_dynamite, last_blast, referrer_id = result
     
     MIN_BLAST_INTERVAL = 30 # секунд
     current_time = int(time())
@@ -311,13 +278,17 @@ async def blast_mine(data: RequestData):
 
     # 2. Расчет добычи и обновление баланса
     
-    # Случайный приз от 0.05 до 0.15
+    # НОВОЕ: Фиксированные призы и выбор
+    PRIZE_AMOUNTS = [0.1, 0.3, 0.5, 1.0, 3.0, 5.0]
     # import random уже добавлен в начале
-    prize_amount = round(random.uniform(0.05, 0.15), 2)
+    prize_amount = random.choice(PRIZE_AMOUNTS)
     
     new_stars = current_stars + prize_amount
     new_dynamite = current_dynamite - 1
     
+    referrer_bonus = 0.0
+    
+    # Обновление баланса текущего пользователя
     cursor.execute("""
         UPDATE users 
         SET stars = ?, 
@@ -326,19 +297,32 @@ async def blast_mine(data: RequestData):
         WHERE id = ?
     """, (new_stars, new_dynamite, current_time, user_id))
     
+    # 3. Начисление реферального бонуса (10%)
+    if referrer_id is not None:
+        REFERRAL_PERCENT = 0.10 # 10%
+        referrer_bonus = round(prize_amount * REFERRAL_PERCENT, 2)
+        
+        cursor.execute("""
+            UPDATE users 
+            SET stars = stars + ?, 
+                referral_earnings = referral_earnings + ? 
+            WHERE id = ?
+        """, (referrer_bonus, referrer_bonus, referrer_id))
+        logger.info(f"Referral bonus: User {referrer_id} received {referrer_bonus} ★ from user {user_id}'s blast.")
+
     conn.commit()
     conn.close()
     
     return JSONResponse(content={
         "prize_amount": prize_amount,
         "new_stars": new_stars,
-        "new_dynamite": new_dynamite
+        "new_dynamite": new_dynamite,
+        "referrer_bonus": referrer_bonus
     })
 
 
 @app.post("/api/v1/withdraw")
 async def request_withdraw(data: WithdrawRequest):
-    """Создание заявки на вывод."""
     init_data = data.init_data
     
     try:
@@ -351,7 +335,7 @@ async def request_withdraw(data: WithdrawRequest):
     username = auth_data.get('username') or f"id_{user_id}"
     amount = data.amount
     
-    MIN_WITHDRAW = 10.0
+    MIN_WITHDRAW = 50.0 # НОВОЕ: Минимальный вывод 50.0
     if amount < MIN_WITHDRAW:
         raise HTTPException(status_code=400, detail=f"Минимальная сумма вывода: {MIN_WITHDRAW} ★.")
 
@@ -388,11 +372,12 @@ async def request_withdraw(data: WithdrawRequest):
     
     return JSONResponse(content={
         "status": "ok",
-        "message": f"Заявка на вывод {amount} ★ принята в обработку. Ожидайте подтверждения."
+        "message": f"Заявка на вывод {amount} ★ принята в обработку. Ожидайте подтверждения.",
+        "new_stars": new_stars # Возвращаем новый баланс для обновления UI
     })
 
 
-# --- АДМИН ПАНЕЛЬ (для тестирования) ---
+# --- АДМИН ПАНЕЛЬ ---
 
 def is_admin(user_id: int) -> bool:
     """Проверяет, является ли пользователь администратором."""
@@ -403,11 +388,10 @@ def is_admin(user_id: int) -> bool:
 
 @app.get("/admin/withdrawals", response_class=HTMLResponse)
 async def admin_panel(request: Request):
-    """
-    Простейшая админ-панель для просмотра и обработки заявок.
-    Требует аутентификации через init_data (для Railway).
-    """
-    # Этот эндпойнт должен быть защищен
+    """Отдача пустой HTML страницы, чтобы удовлетворить требованию TWA."""
+    # Поскольку вся логика встроена во фронтенд index.html, 
+    # этот эндпойнт должен быть адаптирован, если бы админ-панель была отдельной страницей.
+    # Но для TWA можно оставить или удалить, если не используется. Оставляю для совместимости.
     return templates.TemplateResponse("admin.html", {"request": request, "admin_tg_id": ADMIN_TG_ID})
 
 
@@ -427,6 +411,7 @@ async def get_all_withdrawals(data: RequestData):
         
     conn = get_db_connection()
     cursor = conn.cursor()
+    # НОВОЕ: Добавляем user_id в выборку, чтобы было видно, кто выводит
     cursor.execute("SELECT id, user_id, username, amount, status, created_at FROM withdrawals ORDER BY created_at DESC")
     withdrawals = [dict(row) for row in cursor.fetchall()]
     conn.close()
@@ -468,7 +453,6 @@ async def process_admin_action(data: AdminAction):
 
     if action == 'approve':
         new_status = 'approved'
-        # Деньги уже списаны при создании заявки. Просто обновляем статус.
         cursor.execute("UPDATE withdrawals SET status = ? WHERE id = ?", (new_status, withdrawal_id))
         conn.commit()
         
@@ -490,11 +474,5 @@ async def process_admin_action(data: AdminAction):
 
 # --- Основная точка входа для Railway ---
 if __name__ == "__main__":
-    # Запуск только FastAPI.
-    # Если вам нужно, чтобы бот (polling) работал вместе с FastAPI, 
-    # нужно использовать асинхронный запуск, но это часто вызывает проблемы.
-    # В Railway лучше запускать два отдельных сервиса (один для FastAPI, один для бота) или 
-    # использовать вебхуки.
-    # Для простого запуска Web App используем Uvicorn.
     PORT = int(os.environ.get("PORT", 8080))
     uvicorn.run(app, host="0.0.0.0", port=PORT)
