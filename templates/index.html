@@ -35,9 +35,10 @@
             flex-direction: column;
             min-height: 100vh;
             
-            /* ИСПРАВЛЕНИЕ: Предотвращение горизонтальной прокрутки */
+            /* ИСПРАВЛЕНИЕ ДИЗАЙНА: Предотвращение горизонтальной прокрутки */
             overflow-x: hidden;
             width: 100%;
+            max-width: 100vw;
         }
 
         /* --- Общий макет --- */
@@ -160,7 +161,7 @@
         }
 
         /* --- Форма вывода --- */
-        .withdraw-form input[type="number"], .withdraw-form input[type="text"] {
+        .withdraw-form input[type="number"] {
             width: 100%;
             padding: 12px;
             margin-bottom: 15px;
@@ -174,7 +175,7 @@
             transition: border-color 0.2s;
         }
 
-        .withdraw-form input[type="number"]:focus, .withdraw-form input[type="text"]:focus {
+        .withdraw-form input[type="number"]:focus {
             border-color: var(--tg-link);
         }
 
@@ -189,6 +190,18 @@
             color: var(--tg-hint);
             font-size: 0.9em;
             margin-top: 10px;
+        }
+        
+        /* Стиль для отображения ID пользователя */
+        .user-id-display {
+            font-size: 0.8em;
+            color: var(--tg-hint);
+            text-align: center;
+            margin-top: 5px;
+            padding: 5px;
+            background-color: var(--tg-bg);
+            border-radius: 5px;
+            word-break: break-all;
         }
 
         /* --- Реферальная секция --- */
@@ -367,17 +380,19 @@
         <!-- --- Секция "Вывод" (Withdrawal) --- -->
         <div id="withdrawSection" class="section-content">
             <div class="card withdraw-form">
-                <h2>Вывод Звезд (★)</h2>
-                <p class="hint-text">Минимальная сумма вывода: 10.0 ★. Вывод производится через Telegram бота.</p>
+                <h2>Заявка на вывод Звезд (★)</h2>
+                <!-- ОБНОВЛЕНО: Отображение ID пользователя для справки администратора -->
+                <div class="user-id-display">
+                    <span id="telegramUserIdDisplay">Ваш Telegram ID: Не получен</span>
+                </div>
+                
+                <p class="hint-text">Минимальная сумма вывода: 10.0 ★. Средства будут отправлены вручную на ваш Telegram аккаунт после обработки администратором.</p>
                 
                 <label for="withdrawAmount">Сумма вывода (★)</label>
                 <input type="number" id="withdrawAmount" placeholder="10.00" min="10.0" step="0.01">
                 
-                <label for="withdrawWallet">Ваш адрес кошелька (TON/другой)</label>
-                <input type="text" id="withdrawWallet" placeholder="Введите адрес кошелька">
-
                 <button class="btn btn-gold" id="withdrawButton" onclick="withdraw()">
-                    Вывести
+                    Подать заявку
                 </button>
                 <p class="hint-text" id="withdrawError" style="color: #e74c3c; display: none;">Ошибка: Недостаточно средств или неверная сумма.</p>
             </div>
@@ -412,10 +427,10 @@
     <script>
         // --- Глобальные переменные ---
         const tg = window.Telegram.WebApp;
-        // Пустой URL, т.к. запросы идут на текущий домен, который устанавливается Railway
+        // Пустой URL, т.к. запросы идут на текущий домен
         const apiUrl = ''; 
 
-        // ИСПРАВЛЕНИЕ: Используем безопасную проверку для user
+        // ИСПРАВЛЕНИЕ: Используем более безопасную проверку для user
         const safeUser = tg.initDataUnsafe && tg.initDataUnsafe.user ? tg.initDataUnsafe.user : {};
 
         const userState = {
@@ -425,7 +440,7 @@
             referralEarnings: 0.0,
             user: safeUser,
             initData: tg.initData,
-            botUsername: 'star_miner_bot', // Значение по умолчанию, будет обновлено
+            botUsername: 'star_miner_bot',
         };
 
         // --- Элементы UI ---
@@ -438,9 +453,9 @@
         const blastButton = document.getElementById('blastButton');
         const prizeMessageEl = document.getElementById('prizeMessage');
         const withdrawAmountInput = document.getElementById('withdrawAmount');
-        const withdrawWalletInput = document.getElementById('withdrawWallet');
         const withdrawButton = document.getElementById('withdrawButton');
         const withdrawErrorEl = document.getElementById('withdrawError');
+        const telegramUserIdDisplay = document.getElementById('telegramUserIdDisplay'); 
 
         // --- Утилиты API ---
         async function apiPost(endpoint, data = {}) {
@@ -474,6 +489,15 @@
             friendsCountEl.textContent = userState.friendsCount;
             referralEarningsEl.textContent = userState.referralEarnings.toFixed(2);
             
+            // Обновление ID пользователя (для отладки/информации)
+            if (userState.user && userState.user.id) {
+                 const username = userState.user.username ? `@${userState.user.username}` : `(ID: ${userState.user.id})`;
+                 telegramUserIdDisplay.textContent = `Ваш аккаунт: ${username}`;
+            } else {
+                 telegramUserIdDisplay.textContent = 'ID пользователя: ОШИБКА ИНИЦИАЛИЗАЦИИ'; 
+                 telegramUserIdDisplay.style.color = 'var(--dynamite-color)';
+            }
+
             // Управление кнопкой "Взорвать"
             blastButton.disabled = userState.dynamite <= 0;
             blastButton.style.opacity = userState.dynamite <= 0 ? 0.5 : 1;
@@ -482,9 +506,10 @@
             // Управление кнопкой "Вывести"
             const currentWithdrawAmount = parseFloat(withdrawAmountInput.value) || 0;
             const minWithdraw = 10.0;
+            // Кнопка недоступна, если сумма меньше минимума или больше баланса
             withdrawButton.disabled = currentWithdrawAmount < minWithdraw || currentWithdrawAmount > userState.stars;
             withdrawButton.style.opacity = withdrawButton.disabled ? 0.5 : 1;
-
+            
             // Обновление Главной Кнопки Telegram
             const currentSectionId = document.querySelector('.section-content.active').id;
             if (currentSectionId === 'miningSection' && userState.dynamite > 0) {
@@ -504,7 +529,6 @@
             if (element) {
                 element.classList.add('active');
             } else {
-                 // Найти и активировать соответствующий элемент навигации, если он не был передан
                  const navItem = document.querySelector(`.nav-bar .nav-item[onclick*="${sectionId}"]`);
                  if (navItem) navItem.classList.add('active');
             }
@@ -530,7 +554,8 @@
             // Проверка, что user объект существует и имеет id
             if (!userState.user || !userState.user.id) {
                 welcomeMessageEl.textContent = 'Ошибка аутентификации. Перезапустите приложение.';
-                tg.showAlert('Критическая ошибка: Не удалось получить ID пользователя Telegram. Перезапустите Web App.');
+                // Обновляем ID, чтобы показать проблему
+                telegramUserIdDisplay.textContent = 'ID пользователя: ОШИБКА ИНИЦИАЛИЗАЦИИ'; 
                 return;
             }
 
@@ -559,10 +584,6 @@
                 updateUI();
                 // Назначаем MainButton после загрузки данных и показываем, если есть динамит
                 tg.MainButton.onClick(blast);
-                if (userState.dynamite > 0) {
-                    tg.MainButton.setText(`Взорвать (${userState.dynamite} 🧨)`);
-                    tg.MainButton.show();
-                }
             }
         }
 
@@ -572,7 +593,6 @@
                 return;
             }
 
-            // Блокируем кнопку на время запроса
             blastButton.disabled = true;
             withdrawButton.disabled = true;
             tg.MainButton.showProgress(true);
@@ -580,7 +600,6 @@
             try {
                 const data = await apiPost('/api/v1/blast');
 
-                // Обновляем состояние
                 userState.stars = data.new_stars;
                 userState.dynamite = data.new_dynamite;
                 const prize = data.prize_amount.toFixed(2);
@@ -604,10 +623,9 @@
 
         async function withdraw() {
             const amount = parseFloat(withdrawAmountInput.value);
-            const wallet = withdrawWalletInput.value.trim();
             const minWithdraw = 10.0;
             
-            // Проверки на стороне клиента
+            // Проверки
             if (isNaN(amount) || amount < minWithdraw) {
                 withdrawErrorEl.textContent = `Минимальная сумма вывода: ${minWithdraw.toFixed(2)} ★.`;
                 withdrawErrorEl.style.display = 'block';
@@ -618,34 +636,23 @@
                 withdrawErrorEl.style.display = 'block';
                 return;
             }
-            if (!wallet) {
-                withdrawErrorEl.textContent = 'Пожалуйста, введите адрес кошелька.';
-                withdrawErrorEl.style.display = 'block';
-                return;
-            }
             
-            // Сброс ошибки
             withdrawErrorEl.style.display = 'none';
 
-            // Подтверждение вывода
-            tg.showConfirm(`Вы уверены, что хотите вывести ${amount.toFixed(2)} ★ на адрес ${wallet}?`, async (isConfirmed) => {
+            tg.showConfirm(`Вы уверены, что хотите подать заявку на вывод ${amount.toFixed(2)} ★? Средства будут отправлены на ваш Telegram аккаунт вручную.`, async (isConfirmed) => {
                 if (!isConfirmed) return;
 
                 withdrawButton.disabled = true;
                 tg.showProgress(true);
 
                 try {
-                    // Обратите внимание: ваш Python-код принимает только 'amount', а не 'wallet'. 
-                    // Для реальной работы нужно изменить Python-код, чтобы он принимал 'wallet'.
-                    // Сейчас отправляем только amount, как требует текущий Python-код.
+                    // Отправляем только amount
                     const data = await apiPost('/api/v1/withdraw', { amount: amount }); 
                     
-                    userState.stars = data.new_stars; // Обновляем баланс после успешного вывода
-                    tg.showAlert(`✅ Запрос на вывод ${amount.toFixed(2)} ★ успешно создан. Он будет обработан в ближайшее время.`);
+                    userState.stars = data.new_stars; 
+                    tg.showAlert(`✅ Заявка на вывод ${amount.toFixed(2)} ★ успешно создана. Ожидайте обработки администратором.`);
                     
-                    // Очистка формы
                     withdrawAmountInput.value = '';
-                    withdrawWalletInput.value = '';
 
                 } catch (error) {
                     const errorMessage = error.message || 'Произошла ошибка при обработке запроса на вывод.';
@@ -678,7 +685,7 @@
             });
         }
         
-        // Слушатель для обновления состояния кнопки вывода при изменении поля
+        // Слушатели для обновления состояния кнопки вывода
         withdrawAmountInput.addEventListener('input', updateUI);
         
         // --- Инициализация ---
