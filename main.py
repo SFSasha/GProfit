@@ -2,7 +2,10 @@ import os
 import logging
 import asyncio
 import sqlite3
-import json
+import hmac
+import hashlib
+import json # Добавлен import json
+import random # Добавлен import random
 from time import time
 from typing import Optional, Dict, List
 from urllib.parse import parse_qs, unquote
@@ -19,7 +22,7 @@ from telegram.ext import Application, CommandHandler, ContextTypes
 # --- Настройка логирования ---
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
+    level=logging.INFO 
 )
 logger = logging.getLogger(__name__)
 
@@ -29,8 +32,13 @@ WEBAPP_URL = os.environ.get("WEBAPP_URL")
 
 DB_PATH = "/data/app.db"
 BOT_USERNAME = os.environ.get("BOT_USERNAME", "star_miner_bot") 
-# ID администратора. Добавьте его в переменные окружения!
+# ID администратора. Установите его в переменные окружения!
 ADMIN_TG_ID = os.environ.get("ADMIN_TG_ID") 
+
+# Новые константы для логики
+PRIZE_AMOUNTS = [0.1, 0.3, 0.5, 1.0, 3.0, 5.0] # Фиксированные призы
+REFERRAL_PERCENT = 0.10 # 10% комиссия
+MIN_WITHDRAWAL_AMOUNT = 50.0 # Минимальная сумма вывода
 
 # Проверка переменных
 if not TELEGRAM_TOKEN:
@@ -40,9 +48,14 @@ if not WEBAPP_URL:
 if not ADMIN_TG_ID:
     logger.warning("ADMIN_TG_ID не установлен. Доступ к админ-панели будет отключен.")
 
+
 # === МОДЕЛИ Pydantic ===
 
+class RequestData(BaseModel):
+    init_data: str # Строка инициализации, отправленная клиентом
+
 class WithdrawRequest(BaseModel):
+    init_data: str
     amount: float
 
 class BlastResponse(BaseModel):
@@ -51,491 +64,462 @@ class BlastResponse(BaseModel):
     new_dynamite: int
 
 class AdminAction(BaseModel):
+    init_data: str
     withdrawal_id: int
-    action: str # 'approve' or 'reject'
+    action: str # 'approve' или 'reject'
 
-class ClaimBonusResponse(BaseModel):
-    new_stars: float
-    last_claim_time: float # Новое время сбора бонуса
 
 # === ИНИЦИАЛИЗАЦИЯ БД и УТИЛИТЫ ===
 
 def get_db_connection():
-    """Возвращает соединение с БД."""
-    return sqlite3.connect(DB_PATH)
-
-def init_db():
-    """Инициализирует базу данных, создавая таблицы."""
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def initialize_db():
     conn = get_db_connection()
     cursor = conn.cursor()
-    
-    # Обновление схемы: добавлено last_claim_time
+    # Таблица пользователей
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY,
             username TEXT,
-            first_name TEXT,
             stars REAL DEFAULT 0.0,
-            dynamite INTEGER DEFAULT 0,
+            dynamite INTEGER DEFAULT 3,
+            last_blast INTEGER DEFAULT 0,
             referrer_id INTEGER,
-            referral_earnings REAL DEFAULT 0.0,
-            last_claim_time REAL DEFAULT 0.0 -- Время последнего сбора бонуса (timestamp)
-        )
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
     """)
-    
-    # Проверка и добавление колонки, если она отсутствует (для совместимости)
-    try:
-        cursor.execute("SELECT last_claim_time FROM users LIMIT 1")
-    except sqlite3.OperationalError:
-        cursor.execute("ALTER TABLE users ADD COLUMN last_claim_time REAL DEFAULT 0.0")
-
+    # Таблица заявок на вывод
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS withdrawals (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER,
             username TEXT,
             amount REAL,
-            status TEXT DEFAULT 'pending', 
+            status TEXT DEFAULT 'pending', -- pending, approved, rejected
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
+        );
     """)
-
     conn.commit()
     conn.close()
-    logger.info(f"Database initialized at {DB_PATH}")
 
-def get_user(user_id: int, initial_data: Optional[Dict] = None):
-    """Получает или создает пользователя по ID."""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    cursor.execute("SELECT id, username, first_name, stars, dynamite, referrer_id, referral_earnings, last_claim_time FROM users WHERE id = ?", (user_id,))
-    user_row = cursor.fetchone()
-    
-    keys = ["id", "username", "first_name", "stars", "dynamite", "referrer_id", "referral_earnings", "last_claim_time"]
+# Вызов инициализации БД при запуске
+initialize_db()
 
-    if user_row:
-        user_data = dict(zip(keys, user_row))
-        conn.close()
-        return user_data
-    else:
-        # Логика создания нового пользователя
-        referrer_id = None
-        if initial_data and initial_data.get('start_param'):
-            try:
-                # Попытка получить ID реферера
-                potential_referrer_id = int(initial_data['start_param'])
-                cursor.execute("SELECT id FROM users WHERE id = ?", (potential_referrer_id,))
-                if cursor.fetchone():
-                     referrer_id = potential_referrer_id
-                     # Начисляем динамит рефереру за приглашение
-                     cursor.execute("UPDATE users SET dynamite = dynamite + 1 WHERE id = ?", (referrer_id,))
-                     conn.commit()
-            except ValueError:
-                pass # start_param не является числом
-
-        username = initial_data.get('username')
-        first_name = initial_data.get('first_name')
-
-        new_user_data = {
-            "id": user_id,
-            "username": username,
-            "first_name": first_name,
-            "stars": 0.0,
-            "dynamite": 1,
-            "referrer_id": referrer_id,
-            "referral_earnings": 0.0,
-            "last_claim_time": 0.0
-        }
-
-        cursor.execute("""
-            INSERT INTO users (id, username, first_name, stars, dynamite, referrer_id, referral_earnings, last_claim_time)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, (user_id, username, first_name, new_user_data["stars"], new_user_data["dynamite"], 
-              new_user_data["referrer_id"], new_user_data["referral_earnings"], new_user_data["last_claim_time"]))
-        
-        conn.commit()
-        conn.close()
-        
-        return new_user_data
-
-def get_user_referrals_count(user_id: int) -> int:
-    """Считает количество рефералов пользователя."""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(id) FROM users WHERE referrer_id = ?", (user_id,))
-    count = cursor.fetchone()[0]
-    conn.close()
-    return count
-
-def check_init_data_auth(init_data: str) -> Optional[Dict]:
-    """Имитация проверки initData (только парсинг)."""
-    # В реальном приложении здесь должна быть криптографическая проверка HMAC
+# --- Логика аутентификации Telegram Web App ---
+def init_data_auth(init_data: str) -> Dict[str, any]:
+    # ... (unchanged auth logic)
     if not init_data:
-        raise HTTPException(status_code=401, detail="Отсутствуют данные инициализации.")
-
-    parsed_data = parse_qs(init_data)
-    user_data_str = parsed_data.get('user', [None])[0]
-    start_param = parsed_data.get('start_param', [None])[0]
-    
-    if not user_data_str:
-        logger.warning("User data missing in initData.")
-        raise HTTPException(status_code=401, detail="Данные пользователя не найдены.")
+        raise HTTPException(status_code=401, detail="Auth failed: No init_data provided.")
 
     try:
-        user_info = json.loads(unquote(user_data_str))
-        user_id = user_info.get('id')
-        if not user_id:
-            raise HTTPException(status_code=401, detail="ID пользователя не найден.")
-        
-        return {
-            "id": user_id,
-            "username": user_info.get('username'),
-            "first_name": user_info.get('first_name'),
-            "start_param": start_param
-        }
-
+        key = hmac.new(
+            key=TELEGRAM_TOKEN.strip().encode(),
+            msg=b"WebAppData",
+            digestmod=hashlib.sha256
+        ).digest()
     except Exception as e:
-        logger.error(f"Error parsing initData: {e}")
-        raise HTTPException(status_code=401, detail=f"Неверный формат данных: {e}")
+        logger.error(f"Error creating HMAC key: {e}")
+        raise HTTPException(status_code=500, detail="Internal Auth Error.")
 
-# === НАСТРОЙКА БОТА ===
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Отправляет приветственное сообщение с кнопкой для запуска Web App и реферальным параметром."""
-    user_id = update.effective_user.id
-    start_url = f"{WEBAPP_URL}?start={user_id}"
-
-    keyboard = [
-        [InlineKeyboardButton(
-            "🚀 Открыть Star Miner App",
-            web_app=WebAppInfo(url=start_url)
-        )]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text(
-        "Добро пожаловать в Star Miner! Нажмите, чтобы начать добычу.",
-        reply_markup=reply_markup
-    )
-
-async def setup_bot():
-    """Настраивает и запускает бота в фоновом режиме."""
-    application = Application.builder().token(TELEGRAM_TOKEN).build()
-    application.add_handler(CommandHandler("start", start))
+    query_params = parse_qs(unquote(init_data)) 
     
-    await application.initialize()
-    await application.start()
-    await application.updater.start_polling(poll_interval=1.0)
-    logger.info("Telegram бот запущен...")
+    received_hash_list = query_params.pop('hash', [None])
+    received_hash = received_hash_list[0]
 
-# === НАСТРОЙКА FASTAPI (веб-сервер) ===
+    if not received_hash or not query_params.get('auth_date'):
+        raise HTTPException(status_code=401, detail="Auth failed: Missing hash or auth_date.")
+
+    data_check_string = "\n".join([
+        f"{key}={value[0]}"
+        for key, value in sorted(query_params.items())
+    ])
+
+    calculated_hash = hmac.new(
+        key=key,
+        msg=data_check_string.encode(),
+        digestmod=hashlib.sha256
+    ).hexdigest()
+    
+    if calculated_hash != received_hash:
+        logger.error(f"Auth failed: Hash mismatch! Calculated: {calculated_hash}, Received: {received_hash}")
+        raise HTTPException(status_code=401, detail="Auth failed: Hash mismatch.")
+
+    user_data = query_params.get('user', query_params.get('receiver', [None]))[0]
+    if not user_data:
+        raise HTTPException(status_code=401, detail="Auth failed: User data not found.")
+        
+    auth_data = json.loads(user_data)
+    
+    return auth_data
+
+
+# --- ЛОГИКА БД (ПОЛЬЗОВАТЕЛЬ) ---
+def get_or_create_user(user_id: int, username: str, start_parameter: Optional[str] = None):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # 1. Поиск пользователя
+    cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+    user = cursor.fetchone()
+    
+    if not user:
+        # 2. Создание нового пользователя
+        referrer_id = None
+        initial_stars = 0.0 # Default
+        
+        # Проверка на реферера
+        if start_parameter and start_parameter.isdigit() and int(start_parameter) != user_id:
+            potential_referrer_id = int(start_parameter)
+            cursor.execute("SELECT id FROM users WHERE id = ?", (potential_referrer_id,))
+            if cursor.fetchone():
+                referrer_id = potential_referrer_id
+                # Новичок получает 2 звезды за регистрацию по ссылке
+                initial_stars = 2.0 # <-- ДОБАВЛЕНО: 2 звезды за реферала
+                
+        # Вставка нового пользователя
+        cursor.execute("""
+            INSERT INTO users (id, username, stars, dynamite, referrer_id)
+            VALUES (?, ?, ?, ?, ?)
+        """, (user_id, username, initial_stars, 3, referrer_id))
+        conn.commit()
+        
+        # Повторный запрос для получения полных данных (включая default values)
+        cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+        user = cursor.fetchone()
+        logger.info(f"New user created: {username} ({user_id}). Referrer: {referrer_id}. Initial stars: {initial_stars}")
+        conn.close()
+        return dict(user)
+    
+    conn.close()
+    return dict(user)
+
+def get_user_by_id(user_id: int) -> Optional[Dict]:
+    # ... (unchanged)
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+    user = cursor.fetchone()
+    conn.close()
+    return dict(user) if user else None
+
+def get_referral_stats(user_id: int) -> Dict[str, any]:
+    # ... (unchanged)
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    # 1. Считаем количество рефералов
+    cursor.execute("SELECT COUNT(*) FROM users WHERE referrer_id = ?", (user_id,))
+    friends_count = cursor.fetchone()[0]
+    
+    # 2. Суммарный доход от рефералов (не считая 2 стартовые звезды)
+    # Это сложно реализовать точно без дополнительной таблицы транзакций,
+    # поэтому просто считаем, что доход от рефералов - это % от их общей добычи
+    # Для простоты, оставим подсчет в БД как есть, пока не добавлена сложная логика
+    # В этой версии, мы просто возвращаем кол-во друзей, а доход будет считаться на клиенте
+    
+    # Можно добавить отдельное поле referral_earnings в таблицу users для точности.
+    # Пока возвращаем только количество:
+    conn.close()
+    return {
+        "friends_count": friends_count,
+        "referral_earnings": 0.0 # Требует отдельной логики в БД для точного подсчета
+    }
+
+def is_admin_user(user_id: int) -> bool:
+    """Проверяет, является ли пользователь администратором."""
+    return str(user_id) == ADMIN_TG_ID
+
+# --- API FastAPI ---
+
 app = FastAPI()
-templates = Jinja2Templates(directory="templates") 
-
-
-@app.on_event("startup")
-async def startup_event():
-    """При старте сервера инициализируем БД и запускаем бота."""
-    init_db()
-    asyncio.create_task(setup_bot())
+templates = Jinja2Templates(directory=".") # Шаблоны из текущей папки
 
 @app.get("/", response_class=HTMLResponse)
-async def read_root(request: Request):
-    """Отдает главную HTML-страницу веб-приложения, используя Jinja2."""
-    # Передаем ID администратора в шаблон, чтобы фронтенд знал, кто админ
-    admin_id_int = int(ADMIN_TG_ID) if ADMIN_TG_ID and ADMIN_TG_ID.isdigit() else None
-    
-    return templates.TemplateResponse(
-        "index.html", 
-        {"request": request, "BOT_USERNAME": BOT_USERNAME, "ADMIN_TG_ID": admin_id_int} 
-    )
-
-# === API ЭНДПОИНТЫ ===
+async def index(request: Request):
+    """Отдача HTML-страницы приложения."""
+    start_param = request.query_params.get("tgWebAppStartParam")
+    return templates.TemplateResponse("index.html", {"request": request, "start_param": start_param})
 
 @app.post("/api/v1/data")
-async def get_user_data(request: Request):
-    """Получает данные пользователя, проверяя initData."""
+async def get_user_data(data: RequestData):
+    """Получение всех данных пользователя и реферальной информации."""
+    init_data = data.init_data
+    # 1. Аутентификация
     try:
-        body = await request.json()
-        init_data = body.get('init_data')
-    except Exception:
-        raise HTTPException(status_code=400, detail="Неверный формат запроса.")
-
-    auth_data = check_init_data_auth(init_data)
+        auth_data = init_data_auth(init_data)
+    except HTTPException as e:
+        logger.error(f"Auth failed for data endpoint: {e.detail}")
+        raise e
+        
     user_id = auth_data['id']
     
-    user = get_user(user_id, auth_data)
-    referrals_count = get_user_referrals_count(user_id)
+    # 2. Получение данных пользователя
+    user_data = get_user_by_id(user_id)
+    if not user_data:
+        # Если пользователь не найден (хотя должен быть создан в get_or_create), 
+        # то создаем его без реф. параметра (т.к. его тут нет)
+        user_data = get_or_create_user(user_id, auth_data.get('username', 'noname'))
+        
+    # 3. Реферальная статистика
+    referral_stats = get_referral_stats(user_id)
     
-    is_admin = False
-    if ADMIN_TG_ID and str(user_id) == ADMIN_TG_ID:
-        is_admin = True
+    # 4. Проверка на админа
+    is_admin = is_admin_user(user_id)
     
     return JSONResponse(content={
-        "status": "ok",
-        "user_data": user,
-        "referrals_count": referrals_count,
-        "bot_username": BOT_USERNAME,
-        "is_admin": is_admin
+        "user": user_data,
+        "referral_stats": referral_stats,
+        "is_admin": is_admin # <-- ДОБАВЛЕНО
     })
 
-@app.post("/api/v1/claim/bonus", response_model=ClaimBonusResponse)
-async def claim_bonus(request: Request):
-    """Обрабатывает сбор бонуса раз в 10 минут."""
+@app.post("/api/v1/blast", response_model=BlastResponse)
+async def blast_mine(data: RequestData):
+    """Обработка взрыва (списывает динамит, начисляет звезды, начисляет реф. бонус)."""
+    # 1. Аутентификация
     try:
-        body = await request.json()
-        init_data = body.get('init_data')
-    except Exception:
-        raise HTTPException(status_code=400, detail="Неверный формат запроса.")
-
-    auth_data = check_init_data_auth(init_data)
-    user_id = auth_data['id']
-    
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    cursor.execute("SELECT stars, last_claim_time FROM users WHERE id = ?", (user_id,))
-    result = cursor.fetchone()
-    
-    if not result:
-        conn.close()
-        raise HTTPException(status_code=404, detail="Пользователь не найден.")
+        auth_data = init_data_auth(data.init_data)
+    except HTTPException as e:
+        raise e
         
-    current_stars, last_claim_time = result
-    
-    current_time = time()
-    CLAIM_INTERVAL = 10 * 60 # 10 минут в секундах
-    BONUS_AMOUNT = 0.2
-    
-    if (current_time - last_claim_time) < CLAIM_INTERVAL:
-        conn.close()
-        # Вычисляем оставшееся время для фронтенда
-        remaining = CLAIM_INTERVAL - (current_time - last_claim_time)
-        raise HTTPException(status_code=400, detail=f"Подождите еще {int(remaining)} секунд до следующего сбора.")
+    user_id = auth_data['id']
+    username = auth_data.get('username')
+    user = get_user_by_id(user_id)
 
-    # Начисление бонуса
-    new_stars = current_stars + BONUS_AMOUNT
-    new_claim_time = current_time
+    if not user:
+        raise HTTPException(status_code=404, detail="Пользователь не найден.")
+
+    if user['dynamite'] <= 0:
+        raise HTTPException(status_code=400, detail="Недостаточно Динамита.")
     
-    cursor.execute("""
-        UPDATE users SET stars = ?, last_claim_time = ? WHERE id = ?
-    """, (new_stars, new_claim_time, user_id))
-    
-    conn.commit()
-    conn.close()
-
-    return JSONResponse(content={
-        "new_stars": new_stars,
-        "last_claim_time": new_claim_time
-    })
-
-
-@app.post("/api/v1/chest/blast", response_model=BlastResponse)
-async def blast_chest(request: Request):
-    """Обрабатывает взрыв сундука."""
-    # (Логика оставлена без изменений, так как она не вызывала проблем)
     try:
-        body = await request.json()
-        init_data = body.get('init_data')
-    except Exception:
-        raise HTTPException(status_code=400, detail="Неверный формат запроса.")
-
-    auth_data = check_init_data_auth(init_data)
-    user_id = auth_data['id']
-    
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    cursor.execute("SELECT dynamite, stars, referrer_id FROM users WHERE id = ?", (user_id,))
-    result = cursor.fetchone()
-    
-    if not result:
-        conn.close()
-        raise HTTPException(status_code=404, detail="Пользователь не найден.")
+        conn = get_db_connection()
+        cursor = conn.cursor()
         
-    current_dynamite, current_stars, referrer_id = result
-    
-    if current_dynamite <= 0:
-        conn.close()
-        raise HTTPException(status_code=400, detail="Недостаточно взрывчатки.")
-
-    prizes = [0.1, 0.3, 0.5, 1.0, 3.0, 10.0]
-    import random
-    prize = random.choice(prizes)
-    
-    referral_commission = prize * 0.10
-    
-    if referrer_id:
-        try:
-            # Начисление комиссии рефереру (только звездами)
-            cursor.execute("SELECT stars, referral_earnings FROM users WHERE id = ?", (referrer_id,))
-            referrer_data = cursor.fetchone()
-            if referrer_data:
-                new_ref_stars = referrer_data[0] + referral_commission
-                new_ref_earnings = referrer_data[1] + referral_commission
-                cursor.execute("""
-                    UPDATE users SET stars = ?, referral_earnings = ? WHERE id = ?
-                """, (new_ref_stars, new_ref_earnings, referrer_id))
-                conn.commit()
-
-        except Exception as e:
-            logger.error(f"Failed to credit referrer {referrer_id}: {e}")
+        # 1. Выбираем случайный приз из фиксированного списка
+        prize_amount = random.choice(PRIZE_AMOUNTS) # <-- ФИКСИРОВАННЫЕ ПРИЗЫ
+        
+        # 2. Обновляем баланс пользователя
+        cursor.execute(
+            "UPDATE users SET stars = stars + ?, dynamite = dynamite - 1, last_blast = ? WHERE id = ?",
+            (prize_amount, int(time()), user_id)
+        )
+        
+        # 3. ЛОГИКА РЕФЕРАЛЬНОГО БОНУСА (10%)
+        referrer_id = user['referrer_id']
+        referral_bonus = 0.0
+        if referrer_id:
+            referral_bonus = round(prize_amount * REFERRAL_PERCENT, 2) # 10%
+            cursor.execute(
+                "UPDATE users SET stars = stars + ? WHERE id = ?",
+                (referral_bonus, referrer_id)
+            )
+            # В идеале нужно обновить и статистику реферера, но пока просто начисляем на баланс.
             
-    new_stars = current_stars + prize
-    new_dynamite = current_dynamite - 1
-    
-    cursor.execute("""
-        UPDATE users SET stars = ?, dynamite = ? WHERE id = ?
-    """, (new_stars, new_dynamite, user_id))
-    
-    conn.commit()
-    conn.close()
+        conn.commit()
+        
+        # 4. Получаем обновленные данные
+        cursor.execute("SELECT stars, dynamite FROM users WHERE id = ?", (user_id,))
+        updated_user = cursor.fetchone()
+        
+        if updated_user:
+            new_stars = updated_user['stars']
+            new_dynamite = updated_user['dynamite']
+        else:
+            new_stars = user['stars'] + prize_amount
+            new_dynamite = user['dynamite'] - 1
 
-    return JSONResponse(content={
-        "prize_amount": prize,
-        "new_stars": new_stars,
-        "new_dynamite": new_dynamite
-    })
+        logger.info(f"User {user_id} blasted: Won {prize_amount} stars. Ref bonus: {referral_bonus}")
+        
+        return BlastResponse(
+            prize_amount=prize_amount, 
+            new_stars=new_stars, 
+            new_dynamite=new_dynamite
+        )
+        
+    except Exception as e:
+        logger.error(f"Error during blast for user {user_id}: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error during blast.")
+    finally:
+        if 'conn' in locals() and conn:
+            conn.close()
 
 
-@app.post("/api/v1/withdraw/request")
-async def request_withdraw(request: Request, data: WithdrawRequest):
-    """Создает заявку на вывод."""
-    # (Логика оставлена без изменений)
+@app.post("/api/v1/withdraw")
+async def request_withdraw(data: WithdrawRequest):
+    """Создание заявки на вывод."""
+    # 1. Аутентификация
     try:
-        body = await request.json()
-        init_data = body.get('init_data')
-    except Exception:
-        raise HTTPException(status_code=400, detail="Неверный формат запроса.")
+        auth_data = init_data_auth(data.init_data)
+    except HTTPException as e:
+        raise e
 
-    auth_data = check_init_data_auth(init_data)
     user_id = auth_data['id']
-    username = auth_data['username'] or f"id_{user_id}"
+    username = auth_data.get('username') # <-- Telegram username
     amount = data.amount
-    
-    MIN_WITHDRAW = 10.0
-    if amount < MIN_WITHDRAW:
-        raise HTTPException(status_code=400, detail=f"Минимальная сумма вывода: {MIN_WITHDRAW} ★.")
 
+    # 2. Проверка минимальной суммы
+    if amount < MIN_WITHDRAWAL_AMOUNT: # <-- МИНИМУМ 50
+        raise HTTPException(status_code=400, detail=f"Минимальная сумма вывода: {MIN_WITHDRAWAL_AMOUNT} Звезд.")
+
+    # 3. Проверка баланса
+    user = get_user_by_id(user_id)
+    if not user or user['stars'] < amount:
+        raise HTTPException(status_code=400, detail="Недостаточно Звезд на балансе.")
+    
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    cursor.execute("SELECT stars FROM users WHERE id = ?", (user_id,))
-    result = cursor.fetchone()
-    if not result:
-        conn.close()
-        raise HTTPException(status_code=404, detail="Пользователь не найден.")
-        
-    current_stars = result[0]
-    
-    if amount > current_stars:
-        conn.close()
-        raise HTTPException(status_code=400, detail="Недостаточно средств на балансе.")
-
-    new_stars = current_stars - amount
-    
-    # Сначала уменьшаем баланс
-    cursor.execute("UPDATE users SET stars = ? WHERE id = ?", (new_stars, user_id))
-    
-    # Затем создаем заявку
-    cursor.execute("""
-        INSERT INTO withdrawals (user_id, username, amount)
-        VALUES (?, ?, ?)
-    """, (user_id, username, amount))
-    
-    conn.commit()
-    conn.close()
-    
-    logger.info(f"Withdrawal requested: User {username} ({user_id}) requested {amount} ★")
-    
-    return JSONResponse(content={
-        "status": "ok",
-        "message": "Заявка на вывод успешно создана.",
-        "new_stars": new_stars
-    })
-
-# --- АДМИН ЭНДПОИНТЫ ---
-
-@app.get("/api/v1/admin/withdrawals", response_model=List[Dict])
-async def get_withdrawals(request: Request):
-    """Получает все ожидающие заявки (только для админа)."""
-    # Проверка админа
     try:
-        query_params = request.query_params
-        init_data = query_params.get('init_data')
-        auth_data = check_init_data_auth(init_data)
-        if not ADMIN_TG_ID or str(auth_data['id']) != ADMIN_TG_ID:
-            raise HTTPException(status_code=403, detail="Доступ запрещен.")
-    except Exception:
-        raise HTTPException(status_code=403, detail="Доступ запрещен или неверные данные.")
+        # Списание средств
+        cursor.execute("UPDATE users SET stars = stars - ? WHERE id = ?", (amount, user_id))
+        
+        # Запись заявки с Telegram username пользователя
+        cursor.execute("""
+            INSERT INTO withdrawals (user_id, username, amount, status)
+            VALUES (?, ?, ?, ?)
+        """, (user_id, username, amount, 'pending'))
+        
+        conn.commit()
+        logger.info(f"Withdrawal request created: User {username} ({user_id}), Amount {amount}")
+        
+        return JSONResponse(content={"status": "ok", "message": "Заявка на вывод успешно создана."})
+        
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"Error during withdraw for user {user_id}: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error during withdrawal.")
+    finally:
+        conn.close()
+
+# --- АДМИН ПАНЕЛЬ API ---
+
+@app.post("/api/v1/admin/withdrawals")
+async def get_admin_withdrawals(data: RequestData):
+    """Получение всех ожидающих заявок на вывод."""
+    # 1. Аутентификация и проверка админа
+    try:
+        auth_data = init_data_auth(data.init_data)
+        user_id = auth_data['id']
+        if not is_admin_user(user_id):
+            raise HTTPException(status_code=403, detail="Доступ запрещен. Только для администраторов.")
+    except HTTPException as e:
+        raise e
         
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    cursor.execute("SELECT id, user_id, username, amount, status, created_at FROM withdrawals WHERE status = 'pending' ORDER BY created_at ASC")
-    rows = cursor.fetchall()
-    
-    keys = ["id", "user_id", "username", "amount", "status", "created_at"]
-    withdrawals = [dict(zip(keys, row)) for row in rows]
+    # 2. Выборка ожидающих заявок
+    # Получаем username, amount, id, created_at
+    cursor.execute("SELECT id, username, amount, created_at FROM withdrawals WHERE status = 'pending' ORDER BY created_at ASC")
+    withdrawals = cursor.fetchall()
     
     conn.close()
-    return withdrawals
+    
+    result = [dict(row) for row in withdrawals]
+    
+    logger.info(f"Admin {user_id} fetched {len(result)} pending withdrawals.")
+    return JSONResponse(content={"withdrawals": result})
 
 @app.post("/api/v1/admin/action")
-async def process_admin_action(request: Request, data: AdminAction):
-    """Подтверждает или отклоняет заявку (только для админа)."""
-    # Проверка админа
+async def admin_withdrawal_action(action_data: AdminAction):
+    """Одобрение или отклонение заявки на вывод."""
+    # 1. Аутентификация и проверка админа
     try:
-        body = await request.json()
-        init_data = body.get('init_data')
-        auth_data = check_init_data_auth(init_data)
-        if not ADMIN_TG_ID or str(auth_data['id']) != ADMIN_TG_ID:
-            raise HTTPException(status_code=403, detail="Доступ запрещен.")
-    except Exception:
-        raise HTTPException(status_code=403, detail="Доступ запрещен или неверные данные.")
+        auth_data = init_data_auth(action_data.init_data)
+        user_id = auth_data['id']
+        if not is_admin_user(user_id):
+            raise HTTPException(status_code=403, detail="Доступ запрещен. Только для администраторов.")
+    except HTTPException as e:
+        raise e
         
-    withdrawal_id = data.withdrawal_id
-    action = data.action
+    withdrawal_id = action_data.withdrawal_id
+    action = action_data.action
     
+    if action not in ['approve', 'reject']:
+        raise HTTPException(status_code=400, detail="Неверное действие. Доступно: 'approve' или 'reject'.")
+
     conn = get_db_connection()
     cursor = conn.cursor()
-
-    cursor.execute("SELECT user_id, amount, status FROM withdrawals WHERE id = ?", (withdrawal_id,))
-    withdrawal = cursor.fetchone()
     
-    if not withdrawal:
-        conn.close()
-        raise HTTPException(status_code=404, detail="Заявка не найдена.")
+    try:
+        # 2. Проверка заявки
+        cursor.execute("SELECT user_id, amount, status FROM withdrawals WHERE id = ?", (withdrawal_id,))
+        withdrawal = cursor.fetchone()
+        
+        if not withdrawal:
+            raise HTTPException(status_code=404, detail="Заявка не найдена.")
 
-    user_id, amount, current_status = withdrawal
-    
-    if current_status != 'pending':
-        conn.close()
-        raise HTTPException(status_code=400, detail=f"Заявка уже имеет статус: {current_status}")
+        user_id_target, amount, current_status = withdrawal
+        
+        if current_status != 'pending':
+            raise HTTPException(status_code=400, detail=f"Заявка уже имеет статус: {current_status}")
 
-    if action == 'approve':
-        new_status = 'approved'
-        # Деньги уже списаны при создании заявки. Просто обновляем статус.
-        cursor.execute("UPDATE withdrawals SET status = ? WHERE id = ?", (new_status, withdrawal_id))
-        conn.commit()
+        if action == 'approve':
+            new_status = 'approved'
+            # Деньги уже списаны. Просто обновляем статус.
+            cursor.execute("UPDATE withdrawals SET status = ? WHERE id = ?", (new_status, withdrawal_id))
+            conn.commit()
+            
+        elif action == 'reject':
+            new_status = 'rejected'
+            # Возвращаем средства на баланс пользователя
+            cursor.execute("UPDATE users SET stars = stars + ? WHERE id = ?", (amount, user_id_target))
+            cursor.execute("UPDATE withdrawals SET status = ? WHERE id = ?", (new_status, withdrawal_id))
+            conn.commit()
+            
+        logger.info(f"Admin Action: Withdrawal #{withdrawal_id} updated to {new_status} by Admin {user_id}")
         
-    elif action == 'reject':
-        new_status = 'rejected'
-        # Возвращаем средства на баланс пользователя
-        cursor.execute("UPDATE users SET stars = stars + ? WHERE id = ?", (amount, user_id))
-        cursor.execute("UPDATE withdrawals SET status = ? WHERE id = ?", (new_status, withdrawal_id))
-        conn.commit()
+        # Отправляем уведомление пользователю через бота (опционально, требуется дополнительная логика Telegram Bot API)
+        # На данный момент, просто возвращаем успешный ответ
         
-    else:
+        return JSONResponse(content={"status": "ok", "message": f"Заявка #{withdrawal_id} обновлена до {new_status}"})
+        
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"Admin action failed for withdrawal {withdrawal_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Ошибка при обработке действия: {e}")
+    finally:
         conn.close()
-        raise HTTPException(status_code=400, detail="Неверное действие.")
-        
-    conn.close()
-    return JSONResponse(content={"status": "ok", "message": f"Заявка #{withdrawal_id} обновлена до {new_status}"})
 
 
 # --- Основная точка входа для Railway ---
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    # Логика запуска бота
+    async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        user_id = update.effective_user.id
+        username = update.effective_user.username or ""
+        
+        # Получаем параметр 'start' из команды /start (если есть)
+        start_payload = context.args[0] if context.args else None
+        
+        # Создаем или получаем пользователя
+        get_or_create_user(user_id, username, start_payload)
+
+        # Кнопка для запуска Web App
+        keyboard = [
+            [InlineKeyboardButton("🎮 Запустить Star Miner", web_app=WebAppInfo(url=f"{WEBAPP_URL}?tgWebAppStartParam={start_payload or user_id}"))]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
+        await update.message.reply_text(
+            'Добро пожаловать в Star Miner! Жми кнопку, чтобы начать добычу.', 
+            reply_markup=reply_markup
+        )
+
+    application = Application.builder().token(TELEGRAM_TOKEN).build()
+    application.add_handler(CommandHandler("start", start))
+
+    # Запуск FastAPI в отдельном потоке
+    loop = asyncio.get_event_loop()
+    config = uvicorn.Config(app, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)), loop=loop)
+    server = uvicorn.Server(config)
+    
+    # Запуск обоих приложений
+    loop.run_until_complete(asyncio.gather(
+        application.run_polling(),
+        server.serve()
+    ))
