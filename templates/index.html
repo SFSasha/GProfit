@@ -2,98 +2,538 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Моё TG Web App</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Telegram Stars App</title>
     <!-- Подключаем скрипт от Telegram -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
+        /* --- Общие стили --- */
+        :root {
+            --tg-bg: var(--tg-theme-bg-color, #18222d);
+            --tg-text: var(--tg-theme-text-color, #ffffff);
+            --tg-hint: var(--tg-theme-hint-color, #b1c3d5);
+            --tg-button: var(--tg-theme-button-color, #40a7e3);
+            --tg-button-text: var(--tg-theme-button-text-color, #ffffff);
+            --tg-secondary-bg: var(--tg-theme-secondary-bg-color, #232e3c);
+            --gold-gradient: linear-gradient(145deg, #ffd700, #ffb300);
+            --purple-gradient: linear-gradient(145deg, #8e44ad, #9b59b6);
+            --danger-gradient: linear-gradient(145deg, #e74c3c, #c0392b);
+        }
+
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            background-color: var(--tg-theme-bg-color, #ffffff);
-            color: var(--tg-theme-text-color, #000000);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--tg-bg);
+            color: var(--tg-text);
             margin: 0;
-            padding: 15px;
+            padding: 0 15px 80px 15px; /* Отступ снизу для навбара */
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            overflow-x: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .app-container {
+            width: 100%;
+            max-width: 480px;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+        
+        /* --- Стили для не-мобильных устройств --- */
+        #mobile-blocker {
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
             text-align: center;
+            position: fixed;
+            inset: 0;
+            background-color: var(--tg-bg);
+            z-index: 1000;
+            padding: 20px;
         }
-        .container {
-            max-width: 390px;
-            margin: 0 auto;
+        #mobile-blocker h2 {
+            margin-bottom: 10px;
         }
-        h1 {
-            font-size: 24px;
+        
+        /* --- Стили страниц --- */
+        .page {
+            display: none;
+            animation: fadeIn 0.3s ease-in-out;
         }
-        p {
-            font-size: 16px;
+        .page.active {
+            display: block;
         }
-        .user-info {
-            background-color: var(--tg-theme-secondary-bg-color, #f0f0f0);
-            padding: 10px;
-            border-radius: 8px;
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* --- Компоненты --- */
+        .card {
+            background-color: var(--tg-secondary-bg);
+            border-radius: 16px;
+            padding: 20px;
             margin-top: 20px;
-            word-wrap: break-word;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
-        button {
-            background-color: var(--tg-theme-button-color, #007bff);
-            color: var(--tg-theme-button-text-color, #ffffff);
+
+        .main-button {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            background: var(--tg-button);
+            color: var(--tg-button-text);
             border: none;
-            padding: 12px 20px;
-            border-radius: 8px;
+            padding: 15px 20px;
+            border-radius: 12px;
             font-size: 16px;
+            font-weight: 600;
             cursor: pointer;
             width: 100%;
             margin-top: 20px;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        .main-button:active {
+            transform: scale(0.98);
+        }
+        .main-button:disabled {
+            background: var(--tg-hint);
+            cursor: not-allowed;
+        }
+
+        /* --- Шапка (Главная страница) --- */
+        .header {
+            padding-top: 25px;
+            text-align: center;
+        }
+        .balance-display {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        .balance-display .star-icon {
+            width: 40px;
+            height: 40px;
+        }
+        .balance-amount {
+            font-size: 48px;
+            font-weight: 700;
+        }
+        .balance-label {
+            color: var(--tg-hint);
+            margin-top: -5px;
+        }
+
+        /* --- Страница Сундука --- */
+        .chest-container {
+            position: relative;
+            cursor: pointer;
+            margin: 40px auto;
+            width: 200px;
+            height: 200px;
+            perspective: 1000px;
+        }
+        .chest-icon {
+            width: 100%;
+            height: 100%;
+            transition: transform 0.3s ease;
+        }
+        .chest-container:hover .chest-icon {
+            transform: scale(1.05);
+        }
+        .chest-container.shake {
+            animation: shake 0.5s;
+        }
+        
+        @keyframes shake {
+          0%, 100% { transform: translateX(0); }
+          10%, 30%, 50%, 70%, 90% { transform: translateX(-8px); }
+          20%, 40%, 60%, 80% { transform: translateX(8px); }
+        }
+
+        .dynamite-counter {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            font-size: 18px;
+            font-weight: 500;
+        }
+
+        /* --- Страница Друзей (Рефералы) --- */
+        .referral-card .stat {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid rgba(177, 195, 213, 0.2);
+        }
+        .referral-card .stat:last-child {
+            border-bottom: none;
+        }
+        .referral-card .stat-label {
+            color: var(--tg-hint);
+        }
+        .referral-card .stat-value {
+            font-weight: 600;
+        }
+        .referral-link-wrapper {
+            background-color: var(--tg-bg);
+            padding: 10px 15px;
+            border-radius: 12px;
+            margin-top: 20px;
+            word-wrap: break-word;
+            font-family: monospace;
+            text-align: left;
+        }
+        
+        /* --- Навигация --- */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background-color: var(--tg-secondary-bg);
+            display: flex;
+            justify-content: space-around;
+            padding: 10px 0;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.2);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            z-index: 100;
+        }
+        .nav-item {
+            cursor: pointer;
+            text-align: center;
+            color: var(--tg-hint);
+            transition: color 0.2s, transform 0.2s;
+            flex-grow: 1;
+        }
+        .nav-item .icon {
+            width: 28px;
+            height: 28px;
+            margin-bottom: 2px;
+        }
+        .nav-item .label {
+            font-size: 11px;
+            font-weight: 500;
+        }
+        .nav-item.active {
+            color: var(--tg-button);
+            transform: translateY(-2px);
+        }
+        
+        /* --- Модальное окно (для призов) --- */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background-color: rgba(0,0,0,0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s, visibility 0.3s;
+        }
+        .modal-overlay.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+        .modal-content {
+            background-color: var(--tg-secondary-bg);
+            padding: 30px;
+            border-radius: 20px;
+            text-align: center;
+            transform: scale(0.9);
+            transition: transform 0.3s;
+        }
+        .modal-overlay.visible .modal-content {
+            transform: scale(1);
+        }
+        .modal-prize {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            font-size: 32px;
+            font-weight: 700;
+            margin: 15px 0;
+            background: var(--gold-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>👋 Привет из Web App!</h1>
-        <p>Это веб-страница, запущенная прямо внутри Telegram.</p>
 
-        <div id="userInfo" class="user-info">
-            Загрузка данных пользователя...
+    <!-- Блокировщик для не-мобильных устройств -->
+    <div id="mobile-blocker">
+        <div style="width: 100px; height: 100px;">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M15.25 3.75a2.25 2.25 0 0 0-2.25 2.25v12a2.25 2.25 0 0 0 2.25 2.25h-6.5a2.25 2.25 0 0 0-2.25-2.25v-12a2.25 2.25 0 0 0 2.25-2.25h6.5Zm-5.5 1.25a.75.75 0 0 0 0 1.5h4.5a.75.75 0 0 0 0-1.5h-4.5Z" fill="currentColor"></path></svg>
         </div>
-
-        <button id="closeButton">Закрыть приложение</button>
+        <h2>Только для телефонов</h2>
+        <p>Пожалуйста, откройте это приложение на мобильном устройстве.</p>
     </div>
 
+    <div class="app-container">
+        <!-- СТРАНИЦА: ГЛАВНАЯ -->
+        <div id="home-page" class="page active">
+            <header class="header">
+                <div class="balance-display">
+                    <svg class="star-icon" viewBox="0 0 24 24" fill="url(#gold-gradient-icon)" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="gold-gradient-icon"><stop offset="0%" stop-color="#ffd700"/><stop offset="100%" stop-color="#ffb300"/></linearGradient></defs><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27z"/></svg>
+                    <span id="balanceAmount" class="balance-amount">0</span>
+                </div>
+                <div class="balance-label">Всего звезд</div>
+            </header>
+
+            <div class="card">
+                <h3>Добро пожаловать!</h3>
+                <p id="welcome-message" style="color: var(--tg-hint);">Загрузка данных...</p>
+                <p>Приглашайте друзей и взрывайте сундуки, чтобы заработать больше звезд!</p>
+            </div>
+            
+            <div class="card">
+                <h3>Задания (в разработке)</h3>
+                <p style="color: var(--tg-hint);">Здесь скоро появятся задания, за которые можно будет получать звезды и взрывчатку.</p>
+            </div>
+        </div>
+
+        <!-- СТРАНИЦА: СУНДУК -->
+        <div id="chest-page" class="page">
+            <div class="card">
+                <h2>Взорви сундук!</h2>
+                <p style="color: var(--tg-hint);">Используй взрывчатку, чтобы получить случайный приз.</p>
+            </div>
+            
+            <div id="chestContainer" class="chest-container">
+                <svg class="chest-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                    <path fill="#a67c52" d="M10 30 L10 80 L90 80 L90 30 Z"></path>
+                    <path fill="#735438" d="M8 28 L8 82 L92 82 L92 28 Z M12 32 L12 78 L88 78 L88 32 Z"></path>
+                    <path fill="#c7a26d" d="M50 20 A 42 42 0 0 1 92 30 L8 30 A 42 42 0 0 1 50 20 Z"></path>
+                    <path fill="#ffdf00" d="M45 45 L55 45 L55 55 L45 55 Z M47 47 L53 47 L53 53 L47 53 Z M50 49 L50 51"></path>
+                </svg>
+            </div>
+
+            <div id="dynamiteCounter" class="dynamite-counter">
+                <svg style="width: 24px; height: 24px; color: #e74c3c" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M14 2a4 4 0 0 1 4 4v1h2v2h-2v2h2v2h-2v2h2v2h-2v1a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4V7a4 4 0 0 1 4-4h6zm-1 3H9v12h4V5zm-1 2h2v8h-2V7z"/></svg>
+                <span>У вас: <span id="dynamiteAmount">0</span> взрывчатки</span>
+            </div>
+
+            <button id="blastButton" class="main-button">
+                Взорвать сундук
+            </button>
+        </div>
+
+        <!-- СТРАНИЦА: ДРУЗЬЯ -->
+        <div id="friends-page" class="page">
+            <div class="card referral-card">
+                <h2>Приглашай друзей</h2>
+                <p style="color: var(--tg-hint); margin-bottom: 20px;">Вы получаете 10% от их дохода и 1 взрывчатку за каждого приглашенного друга.</p>
+                <div class="stat">
+                    <span class="stat-label">Приглашено друзей</span>
+                    <span id="friendsCount" class="stat-value">0</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Заработано с друзей</span>
+                    <span id="referralEarnings" class="stat-value">0.00 ★</span>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h3>Ваша реферальная ссылка</h3>
+                <div id="referralLink" class="referral-link-wrapper">...</div>
+                <button id="copyLinkButton" class="main-button">
+                    <svg style="width: 20px; height: 20px;" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M16 1H4a2 2 0 0 0-2 2v14h2V3h12V1zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H8V7h11v14z"/></svg>
+                    <span>Копировать ссылку</span>
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- МОДАЛЬНОЕ ОКНО ДЛЯ ПРИЗА -->
+    <div id="prizeModal" class="modal-overlay">
+        <div class="modal-content">
+            <h2>Поздравляем!</h2>
+            <p>Вы выиграли:</p>
+            <div id="prizeAmount" class="modal-prize">
+                <svg class="star-icon" style="width:32px; height:32px" viewBox="0 0 24 24" fill="url(#gold-gradient-icon)" xmlns="http://www.w3.org/2000/svg"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27z"/></svg>
+                <span></span>
+            </div>
+            <button id="closeModalButton" class="main-button">Отлично!</button>
+        </div>
+    </div>
+
+
+    <!-- НАВИГАЦИЯ -->
+    <nav class="bottom-nav">
+        <div class="nav-item active" data-page="home-page">
+            <div class="icon"><svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8h5z"/></svg></div>
+            <div class="label">Главная</div>
+        </div>
+        <div class="nav-item" data-page="chest-page">
+            <div class="icon"><svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M20 6h-4V4c0-1.1-.9-2-2-2h-4c-1.1 0-2 .9-2 2v2H4c-1.1 0-2 .9-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2zm-8-2h4v2h-4V4z"/></svg></div>
+            <div class="label">Сундук</div>
+        </div>
+        <div class="nav-item" data-page="friends-page">
+            <div class="icon"><svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg></div>
+            <div class="label">Друзья</div>
+        </div>
+    </nav>
+
     <script>
-        // Инициализируем Telegram Web App
-        const tg = window.Telegram.WebApp;
-
-        // Расширяем приложение на весь экран
-        tg.expand();
-        
-        // Меняем цвет шапки
-        tg.setHeaderColor('#007bff');
-
-        const userInfoDiv = document.getElementById('userInfo');
-        const closeButton = document.getElementById('closeButton');
-
-        // Проверяем, что объект WebApp доступен
-        if (tg.initDataUnsafe) {
-            const user = tg.initDataUnsafe.user;
-            if (user) {
-                // Отображаем информацию о пользователе
-                userInfoDiv.innerHTML = `
-                    <strong>ID:</strong> ${user.id}<br>
-                    <strong>Имя:</strong> ${user.first_name || ''}<br>
-                    <strong>Фамилия:</strong> ${user.last_name || ''}<br>
-                    <strong>Username:</strong> @${user.username || 'не указан'}
-                `;
-            } else {
-                 userInfoDiv.innerText = 'Не удалось получить данные пользователя.';
-            }
-        } else {
-             userInfoDiv.innerText = 'Это приложение должно быть открыто внутри Telegram.';
+        // --- ПРОВЕРКА НА МОБИЛЬНОЕ УСТРОЙСТВО ---
+        function isMobileDevice() {
+            return /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
         }
 
-        // Обработчик для кнопки закрытия
-        closeButton.addEventListener('click', () => {
-            // Отправляем данные боту (опционально) и закрываем приложение
-            tg.sendData("Пользователь закрыл приложение!");
-            tg.close();
+        if (!isMobileDevice() && !window.Telegram.WebApp.initData) {
+            document.querySelector('.app-container').style.display = 'none';
+            document.querySelector('.bottom-nav').style.display = 'none';
+            document.getElementById('mobile-blocker').style.display = 'flex';
+        }
+
+        // --- ИНИЦИАЛИЗАЦИЯ TELEGRAM WEB APP ---
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+        tg.setHeaderColor('secondary_bg_color');
+        tg.enableClosingConfirmation();
+
+        // --- ГЛОБАЛЬНОЕ СОСТОЯНИЕ (симуляция бэкенда) ---
+        let userState = {
+            stars: 1.25,
+            dynamite: 2,
+            friendsCount: 5,
+            referralEarnings: 15.80,
+            user: null
+        };
+        
+        // --- ЭЛЕМЕНТЫ DOM ---
+        const balanceAmountEl = document.getElementById('balanceAmount');
+        const welcomeMessageEl = document.getElementById('welcome-message');
+        const dynamiteAmountEl = document.getElementById('dynamiteAmount');
+        const friendsCountEl = document.getElementById('friendsCount');
+        const referralEarningsEl = document.getElementById('referralEarnings');
+        const referralLinkEl = document.getElementById('referralLink');
+        const copyLinkButton = document.getElementById('copyLinkButton');
+        const blastButton = document.getElementById('blastButton');
+        const chestContainer = document.getElementById('chestContainer');
+        const prizeModal = document.getElementById('prizeModal');
+        const prizeAmountEl = document.getElementById('prizeAmount').querySelector('span');
+        const closeModalButton = document.getElementById('closeModalButton');
+
+
+        // --- ФУНКЦИИ ОБНОВЛЕНИЯ UI ---
+        function updateUI() {
+            balanceAmountEl.textContent = userState.stars.toFixed(2);
+            dynamiteAmountEl.textContent = userState.dynamite;
+            friendsCountEl.textContent = userState.friendsCount;
+            referralEarningsEl.textContent = `${userState.referralEarnings.toFixed(2)} ★`;
+            
+            if(userState.dynamite > 0) {
+                blastButton.disabled = false;
+            } else {
+                blastButton.disabled = true;
+            }
+        }
+
+        // --- НАВИГАЦИЯ ---
+        const navItems = document.querySelectorAll('.nav-item');
+        const pages = document.querySelectorAll('.page');
+
+        navItems.forEach(item => {
+            item.addEventListener('click', () => {
+                const pageId = item.dataset.page;
+
+                // Управление активным состоянием кнопок
+                navItems.forEach(i => i.classList.remove('active'));
+                item.classList.add('active');
+                
+                // Переключение страниц
+                pages.forEach(p => p.classList.remove('active'));
+                document.getElementById(pageId).classList.add('active');
+                
+                // Виброотклик
+                tg.HapticFeedback.impactOccurred('light');
+            });
         });
+        
+        // --- ЛОГИКА СУНДУКА ---
+        blastButton.addEventListener('click', () => {
+            if (userState.dynamite > 0) {
+                userState.dynamite--;
+                tg.HapticFeedback.impactOccurred('heavy');
+                
+                chestContainer.classList.add('shake');
+                
+                setTimeout(() => {
+                    chestContainer.classList.remove('shake');
+                    const prizes = [0.1, 0.3, 0.5, 1, 3, 10];
+                    const prize = prizes[Math.floor(Math.random() * prizes.length)];
+                    userState.stars += prize;
+                    
+                    showPrizeModal(prize);
+                    updateUI();
+                }, 500);
+                
+            } else {
+                 tg.HapticFeedback.notificationOccurred('error');
+            }
+        });
+
+        function showPrizeModal(amount) {
+            prizeAmountEl.textContent = `${amount.toFixed(2)} ★`;
+            prizeModal.classList.add('visible');
+        }
+
+        closeModalButton.addEventListener('click', () => {
+            prizeModal.classList.remove('visible');
+        });
+        prizeModal.addEventListener('click', (e) => {
+             if(e.target === prizeModal) {
+                 prizeModal.classList.remove('visible');
+             }
+        })
+
+        // --- ЛОГИКА РЕФЕРАЛОВ ---
+        copyLinkButton.addEventListener('click', () => {
+            const link = referralLinkEl.textContent;
+            navigator.clipboard.writeText(link).then(() => {
+                copyLinkButton.querySelector('span').textContent = 'Скопировано!';
+                tg.HapticFeedback.notificationOccurred('success');
+                setTimeout(() => {
+                    copyLinkButton.querySelector('span').textContent = 'Копировать ссылку';
+                }, 2000);
+            });
+        });
+
+        // --- ИНИЦИАЛИЗАЦИЯ ПРИЛОЖЕНИЯ ---
+        document.addEventListener('DOMContentLoaded', () => {
+            if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
+                userState.user = tg.initDataUnsafe.user;
+                welcomeMessageEl.textContent = `Привет, ${userState.user.first_name || 'пользователь'}!`;
+                // ВАЖНО: здесь должен быть ваш юзернейм бота
+                const bot_username = "YOUR_BOT_USERNAME_HERE"; 
+                referralLinkEl.textContent = `https://t.me/${bot_username}?start=${userState.user.id}`;
+            } else {
+                welcomeMessageEl.textContent = 'Откройте приложение внутри Telegram, чтобы начать.';
+                referralLinkEl.textContent = 'Ссылка будет доступна в Telegram.';
+                copyLinkButton.disabled = true;
+            }
+
+            updateUI();
+        });
+
     </script>
 </body>
 </html>
