@@ -38,6 +38,10 @@ if not TELEGRAM_TOKEN:
 if not WEBAPP_URL:
     raise ValueError("Не найден WEBAPP_URL в переменных окружения! Сначала задеплойте проект, получите URL и добавьте его.")
 
+# --- ГЛОБАЛЬНЫЕ КОНСТАНТЫ И КОНФИГУРАЦИЯ ---
+DB_PATH = "/data/app.db" # <-- ДОБАВЛЕНО/ИСПРАВЛЕНО
+BOT_USERNAME = os.environ.get("BOT_USERNAME", "star_miner_bot") # <-- ДОБАВЛЕНО
+ADMIN_TG_ID = os.environ.get("ADMIN_TG_ID") # <-- ДОБАВЛЕНО
 
 # === МОДЕЛИ Pydantic ===
 class RequestData(BaseModel):
