@@ -34,6 +34,10 @@
             display: flex;
             flex-direction: column;
             min-height: 100vh;
+            
+            /* ИСПРАВЛЕНИЕ: Предотвращение горизонтальной прокрутки */
+            overflow-x: hidden;
+            width: 100%;
         }
 
         /* --- Общий макет --- */
@@ -156,7 +160,7 @@
         }
 
         /* --- Форма вывода --- */
-        .withdraw-form input[type="number"] {
+        .withdraw-form input[type="number"], .withdraw-form input[type="text"] {
             width: 100%;
             padding: 12px;
             margin-bottom: 15px;
@@ -170,7 +174,7 @@
             transition: border-color 0.2s;
         }
 
-        .withdraw-form input[type="number"]:focus {
+        .withdraw-form input[type="number"]:focus, .withdraw-form input[type="text"]:focus {
             border-color: var(--tg-link);
         }
 
@@ -325,7 +329,7 @@
                 <h2>Что дальше?</h2>
                 <p class="hint-text">Каждый взрыв использует 1 единицу Динамита и дает случайное количество Звезд (★).</p>
                 <p class="hint-text">Динамит автоматически пополняется со временем или может быть получен через реферальную программу.</p>
-                <button class="btn btn-primary" onclick="showSection('friendsSection')">Пригласить друзей</button>
+                <button class="btn btn-primary" onclick="showSection('friendsSection', document.querySelector('.nav-item[onclick*=\"friendsSection\"]'))">Пригласить друзей</button>
             </div>
         </div>
 
@@ -408,14 +412,18 @@
     <script>
         // --- Глобальные переменные ---
         const tg = window.Telegram.WebApp;
-        const apiUrl = ''; // Пустой URL, т.к. запросы идут на текущий домен
+        // Пустой URL, т.к. запросы идут на текущий домен, который устанавливается Railway
+        const apiUrl = ''; 
+
+        // ИСПРАВЛЕНИЕ: Используем безопасную проверку для user
+        const safeUser = tg.initDataUnsafe && tg.initDataUnsafe.user ? tg.initDataUnsafe.user : {};
 
         const userState = {
             stars: 0.0,
             dynamite: 0,
             friendsCount: 0,
             referralEarnings: 0.0,
-            user: tg.initDataUnsafe.user || {},
+            user: safeUser,
             initData: tg.initData,
             botUsername: 'star_miner_bot', // Значение по умолчанию, будет обновлено
         };
@@ -477,11 +485,12 @@
             withdrawButton.disabled = currentWithdrawAmount < minWithdraw || currentWithdrawAmount > userState.stars;
             withdrawButton.style.opacity = withdrawButton.disabled ? 0.5 : 1;
 
-            if (userState.dynamite > 0) {
+            // Обновление Главной Кнопки Telegram
+            const currentSectionId = document.querySelector('.section-content.active').id;
+            if (currentSectionId === 'miningSection' && userState.dynamite > 0) {
                  tg.MainButton.setText(`Взорвать (${userState.dynamite} 🧨)`);
                  tg.MainButton.show();
             } else {
-                 tg.MainButton.setText('Нет Динамита');
                  tg.MainButton.hide();
             }
         }
@@ -496,23 +505,17 @@
                 element.classList.add('active');
             } else {
                  // Найти и активировать соответствующий элемент навигации, если он не был передан
-                 document.querySelector(`.nav-bar .nav-item[onclick*="${sectionId}"]`).classList.add('active');
+                 const navItem = document.querySelector(`.nav-bar .nav-item[onclick*="${sectionId}"]`);
+                 if (navItem) navItem.classList.add('active');
             }
 
             // Обновление Главной Кнопки Telegram
             if (sectionId === 'miningSection') {
-                if (userState.dynamite > 0) {
-                    tg.MainButton.setText(`Взорвать (${userState.dynamite} 🧨)`);
-                    tg.MainButton.show();
-                } else {
-                    tg.MainButton.setText('Нет Динамита');
-                    tg.MainButton.hide();
-                }
-                tg.MainButton.onClick(() => blast());
-            } else {
-                tg.MainButton.hide();
-                tg.MainButton.offClick(() => blast());
-            }
+                tg.MainButton.offClick(blast); // Сначала отключаем, чтобы не было дублирования
+                tg.MainButton.onClick(blast);
+            } 
+            // Вызываем updateUI, чтобы проверить состояние MainButton для новой секции
+            updateUI();
         }
 
         // --- Основная логика приложения ---
@@ -524,6 +527,13 @@
                 return;
             }
             
+            // Проверка, что user объект существует и имеет id
+            if (!userState.user || !userState.user.id) {
+                welcomeMessageEl.textContent = 'Ошибка аутентификации. Перезапустите приложение.';
+                tg.showAlert('Критическая ошибка: Не удалось получить ID пользователя Telegram. Перезапустите Web App.');
+                return;
+            }
+
             tg.expand();
             tg.setHeaderColor('secondary_bg_color');
             tg.enableClosingConfirmation();
@@ -547,10 +557,12 @@
                 tg.showAlert(`Ошибка загрузки: ${error.message}`);
             } finally {
                 updateUI();
-                // Назначаем MainButton после загрузки данных
-                tg.MainButton.setText(`Взорвать (${userState.dynamite} 🧨)`);
-                tg.MainButton.onClick(() => blast());
-                if (userState.dynamite > 0) tg.MainButton.show();
+                // Назначаем MainButton после загрузки данных и показываем, если есть динамит
+                tg.MainButton.onClick(blast);
+                if (userState.dynamite > 0) {
+                    tg.MainButton.setText(`Взорвать (${userState.dynamite} 🧨)`);
+                    tg.MainButton.show();
+                }
             }
         }
 
@@ -596,7 +608,7 @@
             const minWithdraw = 10.0;
             
             // Проверки на стороне клиента
-            if (amount < minWithdraw) {
+            if (isNaN(amount) || amount < minWithdraw) {
                 withdrawErrorEl.textContent = `Минимальная сумма вывода: ${minWithdraw.toFixed(2)} ★.`;
                 withdrawErrorEl.style.display = 'block';
                 return;
@@ -623,7 +635,10 @@
                 tg.showProgress(true);
 
                 try {
-                    const data = await apiPost('/api/v1/withdraw', { amount: amount, wallet: wallet });
+                    // Обратите внимание: ваш Python-код принимает только 'amount', а не 'wallet'. 
+                    // Для реальной работы нужно изменить Python-код, чтобы он принимал 'wallet'.
+                    // Сейчас отправляем только amount, как требует текущий Python-код.
+                    const data = await apiPost('/api/v1/withdraw', { amount: amount }); 
                     
                     userState.stars = data.new_stars; // Обновляем баланс после успешного вывода
                     tg.showAlert(`✅ Запрос на вывод ${amount.toFixed(2)} ★ успешно создан. Он будет обработан в ближайшее время.`);
@@ -648,14 +663,18 @@
 
         function copyReferralLink() {
             const link = referralLinkEl.textContent;
-            navigator.clipboard.writeText(link).then(() => {
-                tg.showPopup({
-                    title: 'Скопировано',
-                    message: 'Реферальная ссылка скопирована в буфер обмена.',
-                    buttons: [{ text: 'OK', type: 'default' }]
-                });
-            }).catch(err => {
-                 tg.showAlert('Не удалось скопировать ссылку. Пожалуйста, скопируйте вручную.');
+            // Используем document.execCommand('copy') как более совместимый в iFrame
+            const el = document.createElement('textarea');
+            el.value = link;
+            document.body.appendChild(el);
+            el.select();
+            document.execCommand('copy');
+            document.body.removeChild(el);
+
+            tg.showPopup({
+                title: 'Скопировано',
+                message: 'Реферальная ссылка скопирована в буфер обмена.',
+                buttons: [{ text: 'OK', type: 'default' }]
             });
         }
         
