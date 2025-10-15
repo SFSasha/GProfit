@@ -105,11 +105,13 @@ initialize_db()
 
 # --- Логика аутентификации Telegram Web App ---
 # --- Логика аутентификации Telegram Web App ---
+# --- Логика аутентификации Telegram Web App (ИСПРАВЛЕНО) ---
 def init_data_auth(init_data: str) -> Dict[str, any]:
     if not init_data:
         raise HTTPException(status_code=401, detail="Auth failed: No init_data provided.")
 
     try:
+        # Ваш бот-токен используется как ключ для HMAC
         key = hmac.new(
             key=TELEGRAM_TOKEN.encode(),
             msg=b"WebAppData",
@@ -127,10 +129,10 @@ def init_data_auth(init_data: str) -> Dict[str, any]:
     received_hash = None
     
     for param in params:
-        # Игнорируем case, если hash может быть не в конце (хотя обычно в конце)
         if param.startswith('hash='):
-            # Извлекаем полученный хэш
             received_hash = param.split('=', 1)[1]
+        elif param.startswith('signature='): # <--- НОВОЕ: ИСКЛЮЧАЕМ signature
+            continue
         else:
             # Все остальные СЫРЫЕ пары добавляем в список
             data_check.append(param)
@@ -153,12 +155,10 @@ def init_data_auth(init_data: str) -> Dict[str, any]:
 
     # 6. Сравнение
     if calculated_hash != received_hash:
-        # Это строка будет выведена в лог при ошибке 401
         logger.error(f"Auth failed: Hash mismatch! Calculated: {calculated_hash}, Received: {received_hash}. String checked: {data_check_string}")
         raise HTTPException(status_code=401, detail="Auth failed: Hash mismatch.")
 
-    # 7. Извлекаем данные пользователя для использования в логике приложения (теперь безопасно)
-    # Используем unquote и parse_qs, чтобы декодировать значения, включая JSON в поле 'user'
+    # ... оставшаяся часть функции остается без изменений
     query_params = parse_qs(unquote(init_data))
     user_data = query_params.get('user', query_params.get('receiver', [None]))[0]
     
@@ -167,7 +167,6 @@ def init_data_auth(init_data: str) -> Dict[str, any]:
 
     auth_data = json.loads(user_data)
     
-    # Добавляем start_param для логики рефералов, если он был
     start_param = query_params.get('tgWebAppStartParam', [None])[0]
     if start_param:
         auth_data['start_param'] = start_param
