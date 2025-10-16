@@ -109,6 +109,18 @@ def init_db(conn):
     )
     """)
 
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS boosts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        type INTEGER NOT NULL,          
+        multiplier REAL NOT NULL,       
+        duration_sec INTEGER NOT NULL, 
+        start_time TEXT,                
+        end_time TEXT,                  
+        is_active INTEGER NOT NULL,     
+        bought_by_id INTEGER NOT NULL   
+    );
+    """)
     # Добавляем недостающие колонки (для старых баз)
     try:
         cur.execute("ALTER TABLE manual_tasks ADD COLUMN max_uses INTEGER DEFAULT 0")
@@ -1021,3 +1033,66 @@ def set_user_verified(user_id: int):
         (1, user_id)
     )
     conn.commit()
+
+def add_boost_to_queue(type: int, multiplier: float, duration_sec: int, bought_by_id: int):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO boosts (type, multiplier, duration_sec, start_time, end_time, is_active, bought_by_id)
+        VALUES (?, ?, ?, NULL, NULL, 0, ?)
+    """, (type, multiplier, duration_sec, bought_by_id))
+    conn.commit()
+
+# 2. Активировать следующий бустер
+def activate_next_boost() -> Optional[sqlite3.Row]:
+    conn = get_conn()
+    cur = conn.cursor()
+    now_utc = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+
+    # Ищем активный бустер
+    cur.execute("SELECT * FROM boosts WHERE is_active = 1")
+    active_boost = cur.fetchone()
+
+    # Если есть активный и его время истекло, помечаем как завершенный
+    if active_boost and active_boost['end_time'] < now_utc:
+        cur.execute("UPDATE boosts SET is_active = 2 WHERE id = ?", (active_boost['id'],))
+        active_boost = None # Сброс, так как он завершен
+
+    # Если нет активного бустера, ищем первый в очереди
+    if not active_boost:
+        cur.execute("SELECT * FROM boosts WHERE is_active = 0 ORDER BY id ASC LIMIT 1")
+        next_boost = cur.fetchone()
+
+        if next_boost:
+            # Активация бустера
+            duration = timedelta(seconds=next_boost['duration_sec'])
+            end_time_utc = (datetime.utcnow() + duration).strftime('%Y-%m-%d %H:%M:%S')
+            
+            cur.execute("""
+                UPDATE boosts 
+                SET is_active = 1, start_time = ?, end_time = ? 
+                WHERE id = ?
+            """, (now_utc, end_time_utc, next_boost['id']))
+            conn.commit()
+            
+            # Получаем активированный бустер
+            cur.execute("SELECT * FROM boosts WHERE id = ?", (next_boost['id'],))
+            return cur.fetchone()
+
+    conn.commit()
+    # Возвращаем текущий активный или None
+    cur.execute("SELECT * FROM boosts WHERE is_active = 1")
+    return cur.fetchone()
+
+# 3. Получить текущий активный множитель
+def get_current_multiplier() -> float:
+    boost = activate_next_boost() # Это также обрабатывает завершение старого и активацию нового
+    return boost['multiplier'] if boost else 1.0
+
+# 4. Получить все активные и ожидающие бустеры (для админки)
+def get_all_active_boosts():
+    conn = get_conn()
+    cur = conn.cursor()
+    # Активные (1) + В очереди (0)
+    cur.execute("SELECT * FROM boosts WHERE is_active IN (0, 1) ORDER BY is_active DESC, id ASC") 
+    return cur.fetchall()
