@@ -4,7 +4,6 @@ from handlers import router
 import asyncio
 from database import get_conn
 import logging 
-from handlers import daily_reward_task, daily_promo_task 
 # Настраиваем логирование: вывод в консоль, уровень INFO
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -28,6 +27,7 @@ async def main():
 if __name__ == "__main__":
     conn = get_conn()
     asyncio.run(main())
+
 
 
 
