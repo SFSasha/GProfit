@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Star Mini App</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app">
+        <h1 class="header">Ваши Звезды: <span id="stars_count">0.0</span> ⭐</h1>
+        
+        <div class="card">
+            <h2>Сундук с Отмычкой</h2>
+            <p id="chest_status">Готов к открытию!</p>
+            <button id="chest_button" class="tma-button" onclick="openChest()">Взломать Сундук</button>
+        </div>
+
+        <div class="card">
+            <h2>Реферальная Система</h2>
+            <p>Пригласите друзей и получите 2⭐ за регистрацию и 10% от их заработка.</p>
+            <div id="ref_link_container">
+                <input type="text" id="referral_link" readonly class="tma-input">
+                <button class="tma-button secondary" onclick="copyRefLink()">Копировать</button>
+            </div>
+            
+            <h3>Ваши Рефералы (<span id="ref_count">0</span>)</h3>
+            <ul id="referrals_list" class="ref-list">
+                </ul>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = ''; // Если бэкенд и фронтенд на одном домене (как в этом примере)
+        let currentUserId = null;
+
+        // Инициализация WebApp
+        Telegram.WebApp.ready();
+        Telegram.WebApp.MainButton.setText('Обновить данные').show().onClick(fetchData);
+
+        // Получить ID реферера из URL, если есть
+        const urlParams = new URLSearchParams(window.location.search);
+        const refIdFromUrl = urlParams.get('start')?.startsWith('ref_') ? urlParams.get('start').substring(4) : null;
+        
+        async function fetchData() {
+            Telegram.WebApp.showProgress();
+            
+            try {
+                // Прикрепляем initData для аутентификации
+                const initData = Telegram.WebApp.initData;
+                
+                let fetchUrl = `${API_URL}/api/user/data?initData=${initData}`;
+                if (refIdFromUrl) {
+                    fetchUrl += `&ref_id=${refIdFromUrl}`;
+                }
+
+                const response = await fetch(fetchUrl);
+                const data = await response.json();
+                
+                currentUserId = data.userId;
+                
+                document.getElementById('stars_count').textContent = parseFloat(data.stars).toFixed(2);
+                
+                // Обновление состояния сундука
+                updateChestStatus(data.last_chest_open);
+                
+                // Обновление реферальной ссылки
+                const refLink = `https://t.me/${Telegram.WebApp.initDataUnsafe.bot_name}?start=ref_${currentUserId}`;
+                document.getElementById('referral_link').value = refLink;
+                
+                // Обновление списка рефералов
+                renderReferrals(data.referrals);
+
+            } catch (error) {
+                console.error('Error fetching data:', error);
+                Telegram.WebApp.showAlert('Ошибка загрузки данных: ' + error.message);
+            } finally {
+                Telegram.WebApp.hideProgress();
+            }
+        }
+        
+        function updateChestStatus(lastOpen) {
+            const oneDay = 24 * 60 * 60 * 1000;
+            const timeSinceOpen = Date.now() - lastOpen;
+            const button = document.getElementById('chest_button');
+            const status = document.getElementById('chest_status');
+
+            if (timeSinceOpen >= oneDay) {
+                status.textContent = "Сундук готов к взлому!";
+                button.disabled = false;
+                button.style.opacity = 1;
+            } else {
+                const remainingTimeMs = oneDay - timeSinceOpen;
+                const hours = Math.floor(remainingTimeMs / (60 * 60 * 1000));
+                const minutes = Math.floor((remainingTimeMs % (60 * 60 * 1000)) / (60 * 1000));
+                
+                status.textContent = `Отмычка восстановится через ${hours} ч. ${minutes} мин.`;
+                button.disabled = true;
+                button.style.opacity = 0.5;
+            }
+        }
+
+        async function openChest() {
+            Telegram.WebApp.showProgress();
+            try {
+                const response = await fetch(`${API_URL}/api/chest/open`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ initData: Telegram.WebApp.initData })
+                });
+                const data = await response.json();
+
+                if (response.ok) {
+                    Telegram.WebApp.showAlert(data.message);
+                    fetchData(); // Обновление данных
+                } else {
+                    Telegram.WebApp.showAlert(`Ошибка: ${data.message}`);
+                }
+            } catch (error) {
+                Telegram.WebApp.showAlert('Ошибка связи с сервером.');
+                console.error('Error opening chest:', error);
+            } finally {
+                Telegram.WebApp.hideProgress();
+            }
+        }
+
+        function renderReferrals(referrals) {
+            const list = document.getElementById('referrals_list');
+            list.innerHTML = '';
+            document.getElementById('ref_count').textContent = referrals.length;
+
+            if (referrals.length === 0) {
+                list.innerHTML = '<li class="empty">У вас пока нет активных рефералов.</li>';
+                return;
+            }
+
+            referrals.forEach(ref => {
+                const li = document.createElement('li');
+                li.innerHTML = `
+                    <span class="ref-name">${ref.username} (ID: ${ref.id})</span>
+                    <span class="ref-earnings">Принес: <b>${parseFloat(ref.total_earned).toFixed(2)}</b> ⭐</span>
+                `;
+                list.appendChild(li);
+            });
+        }
+        
+        function copyRefLink() {
+            const link = document.getElementById('referral_link');
+            link.select();
+            document.execCommand('copy');
+            Telegram.WebApp.showPopup({ message: 'Реферальная ссылка скопирована!' });
+        }
+
+        fetchData();
+    </script>
+</body>
+</html>
