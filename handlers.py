@@ -681,7 +681,7 @@ async def daily_reward_task(bot: Bot):
                 print(f"Не удалось отправить сообщение в группу {GROUP_ID_TO_FORWARD}. Ошибка: {e}")
 
 # handlers.py
-BOT_USERNAME = "StarFlowxbot"  # если у тебя другое имя — замени
+BOT_USERNAME = "starsflowxbot"  # если у тебя другое имя — замени
 
 async def user_has_referral_in_bio(user_id: int, bot) -> bool:
     try:
@@ -1271,7 +1271,7 @@ async def profile(message: types.Message):
         return
 
     info = get_user_info(user)
-    bot_username = "StarFlowxbot"
+    bot_username = "starsflowxbot"
     referral_link = f"https://t.me/{bot_username}?start={info['user_id']}"
     name_to_show = info['full_name'] or (f"@{info['username']}" if info['username'] else "Без имени")
     vip = get_vip_level(user_id)
@@ -1337,7 +1337,7 @@ async def ref_links(callback: types.CallbackQuery):
         await callback.answer()
         return
     info = get_user_info(user)
-    bot_username = "StarFlowxbot"
+    bot_username = "starsflowxbot"
     referral_link = f"https://t.me/{bot_username}?start={info['user_id']}"
     name_to_show = info['full_name'] or (f"@{info['username']}" if info['username'] else "Без имени")
     rewarded_referrals_count = get_referrals_count(user_id) 
@@ -1398,7 +1398,7 @@ async def profile_cb(callback: types.CallbackQuery):
 
     # ✅ Если всё ок → показываем профиль
     info = get_user_info(user)
-    bot_username = "StarFlowxbot"
+    bot_username = "starsflowxbot"
     referral_link = f"https://t.me/{bot_username}?start={info['user_id']}"
     name_to_show = info['full_name'] or (f"@{info['username']}" if info['username'] else "Без имени")
     rewarded_referrals_count = get_referrals_count(user_id) 
