@@ -86,7 +86,7 @@ def get_profile_kb(user_id: int):
     buttons = [
         # Две короткие кнопки рядом
         [
-            InlineKeyboardButton(text="🏷 Активировать купон", callback_data="activate_coupon"),
+            InlineKeyboardButton(text="🏷 Активировать промокод", callback_data="activate_coupon"),
             InlineKeyboardButton(text="🎁 Ежедневный бонус", callback_data="daily_bonus"),
         ],
 
@@ -97,7 +97,7 @@ def get_profile_kb(user_id: int):
         ],
 
         # Длинная кнопка на всю ширину
-        [InlineKeyboardButton(text="💸 Вывод 💸", callback_data="withdraw")]
+        [InlineKeyboardButton(text="Вывод звезд", callback_data="withdraw")]
     ]
     # Кнопка админа только для тебя
     if user_id in ADMIN_ID:
