@@ -134,12 +134,12 @@ main_menu_kb = InlineKeyboardMarkup(inline_keyboard=[
         InlineKeyboardButton(text="✨ Кликер ✨", callback_data="clicker"),
     ],
     [
-        InlineKeyboardButton(text="💎 VIP-подписки", callback_data="VIP_pod"),
-        InlineKeyboardButton(text="🎰 Рулетка", callback_data="roulette_menu"),
+        InlineKeyboardButton(text="VIP-подписки", callback_data="VIP_pod"),
+        InlineKeyboardButton(text="Магазин бустеров", callback_data="roulette_menu"),
     ],
     [
-        InlineKeyboardButton(text="🏆 Статистика", callback_data="statistics"),
-        InlineKeyboardButton(text="🎯 Задания", callback_data="tasks"),
+        InlineKeyboardButton(text="Статистика", callback_data="statistics"),
+        InlineKeyboardButton(text="Задания", callback_data="tasks"),
     ],
     [
         InlineKeyboardButton(text="📊 Реферальная сcылка 📊", callback_data="ref_link"),
@@ -1086,7 +1086,7 @@ async def handle_contact(message: types.Message):
         set_user_verified(user_id)
 
         await message.answer(
-            "✅ Телефон подтверждён. Добро пожаловать!",
+            "✅ Ваш регион подтверждён. Добро пожаловать!",
             reply_markup=ReplyKeyboardRemove()
         )
 
