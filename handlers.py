@@ -312,7 +312,7 @@ async def cmd_start(message: types.Message):
     args = message.text.split()
     referrer_id = int(args[1]) if len(args) > 1 and args[1].isdigit() else None
 
-    add_user(user_id, username, None, referrer_id, full_name)
+    add_user(user_id, username, referrer_id, full_name)
 
     msg = (
         "Чтобы избежать массовой накрутки со стороны нечестных пользователей, мы вынуждены установить проверку на бота, Спасибо за понимание! 🫂\n\n"
