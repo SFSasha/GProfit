@@ -139,9 +139,7 @@ main_menu_kb = InlineKeyboardMarkup(inline_keyboard=[
     ],
     [
         InlineKeyboardButton(text="Статистика", callback_data="statistics"),
-    ],
-    [
-        InlineKeyboardButton(text="📊 Реферальная сcылка 📊", callback_data="ref_link"),
+        InlineKeyboardButton(text="Реферальная сcылка", callback_data="ref_link"),
     ]
 ])
 vip_help_kb = InlineKeyboardMarkup(inline_keyboard=[
