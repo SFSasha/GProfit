@@ -1502,12 +1502,6 @@ async def daily_bonus_cb(callback: types.CallbackQuery):
     
     # 🟢 Отправка нового сообщения
     new_msg = await callback.message.answer("🎉 Вы получили бонус дня +0.6 ⭐️", reply_markup=backs_menu)
-    
-    # 🔴 Удаление старого сообщения
-    try:
-         await callback.message.delete()
-    except Exception:
-         pass
          
     # ⏳ Ожидание 30 секунд и удаление нового сообщения
     await asyncio.sleep(30)
