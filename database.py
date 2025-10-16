@@ -243,14 +243,15 @@ def get_user(user_id: int) -> Optional[dict]:
     row = cur.fetchone()
     return dict(row) if row else None
 
-def add_user(user_id: int, username: Optional[str], phone: None, referrer_id: Optional[int], full_name: Optional[str] = None):
+def add_user(user_id: int, username: Optional[str], referrer_id: Optional[int], full_name: Optional[str] = None):
     conn = get_conn()
     cur = conn.cursor()
     created_at = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
     cur.execute("""
-    INSERT OR IGNORE INTO users (id, username, phone, stars, stars_total, referrer_id, created_at, last_bonus_date, tasks_done, full_name)
-    VALUES (?, ?, ?, 0, 0, ?, ?, NULL, 0, ?)
-    """, (user_id, username, phone, referrer_id, created_at, full_name))
+    INSERT OR IGNORE INTO users (id, username, stars, stars_total, referrer_id, created_at, last_bonus_date, tasks_done, full_name, is_verified)
+    VALUES (?, ?, 0, 0, ?, ?, NULL, 0, ?, ?)
+    """, (user_id, username, referrer_id, created_at, full_name, 0)) 
+    
     conn.commit()
 
 def update_bonus_date(user_id: int, date_iso: str):
