@@ -1016,7 +1016,7 @@ def get_referral_top_for_week() -> List[Tuple[int, int]]:
         WHERE 
             referrer_id IS NOT NULL AND
             referral_bonus_given = 1 AND
-            phone IS NOT NULL AND
+            is_verified = 1 AND
             created_at >= ? AND 
             created_at < ?
         GROUP BY referrer_id
