@@ -804,16 +804,6 @@ async def format_weekly_referral_top(top_list: List[Tuple[int, int]], bot: Bot) 
 
         top_text += f"{emoji} *{user_link}* - {count} приглашенных рефералов\n"
 
-    # --- Добавление наград (вынесено в конец) ---
-    top_text += "\n\n"
-    top_text += "*Награды для Топ-5 Победителей (Баланс):*\n"
-    top_text += "*1 место:* 500 ⭐️\n"
-    top_text += "*2 место:* 300 ⭐️\n"
-    top_text += "*3 место:* 200 ⭐️\n"
-    top_text += "*4 место:* 100 ⭐️\n"
-    top_text += "*5 место:* 50 ⭐️\n"
-    # ---------------------------------------------
-
     return top_text
 
 @router.callback_query(lambda c: c.data == "stat_referrals_today")
@@ -868,7 +858,7 @@ async def stat_referrals_today_cb(callback: types.CallbackQuery):
 
     # 2. ФОРМИРОВАНИЕ БЛОКА НАГРАД (ВЫНЕСЕНО ИЗ IF/ELSE, ОТОБРАЖАЕТСЯ ВСЕГДА)
     weekly_reward_html = (
-        "\n\n<blockquote><b>Награды для Топ-5 Победителей еженедельного топа:</b>\n"
+        "\n\n<blockquote><b>Награды для Топ-5 Победителей ежедневного топа:</b>\n"
         "1 место: 30 ⭐️\n"
         "2 место: 20 ⭐️\n"
         "3 место: 10 ⭐️\n"
