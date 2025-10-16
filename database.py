@@ -928,11 +928,6 @@ def get_verified_users_today_count(target_date: str) -> int:
 
 
 def get_verified_referrals_count(referrer_id: int) -> int:
-    """
-    Считает количество рефералов, которые завершили полную регистрацию:
-    - имеют phone (подтвердили номер)
-    - имеют referral_bonus_given = 1 (прошли проверку Flyer API)
-    """
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
@@ -941,7 +936,7 @@ def get_verified_referrals_count(referrer_id: int) -> int:
         WHERE 
             referrer_id = ? 
             AND referral_bonus_given = 1 
-            AND phone IS NOT NULL
+            AND is_verified = 1
     """, (referrer_id,))
     count = cur.fetchone()[0]
     return count
