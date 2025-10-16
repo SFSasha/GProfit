@@ -937,150 +937,6 @@ async def stat_referrals_today_cb(callback: types.CallbackQuery):
 
 processing_bonus = set()
 
-@router.callback_query(F.data == "bio_bonus")
-async def bio_bonus_cb(callback: types.CallbackQuery):
-    user_id = callback.from_user.id
-    bot = callback.bot
-    data_subgram = await subgram_check_wrapper(user=callback.from_user, message=callback.message, action="subscribe")
-    if not data_subgram.get("skip"):
-        # Wrapper сам отправит сообщение, нужно только ответить на callback
-        await callback.answer()
-        return
-    # 🔒 Защита от повторного нажатия
-    if user_id in processing_bonus:
-        await callback.answer("⏳ Бонус уже обрабатывается, подождите пару секунд...", show_alert=True)
-        return
-
-    processing_bonus.add(user_id)
-
-    try:
-        user = get_user(user_id)
-        if not user:
-            await callback.answer("⚠️ Вы не зарегистрированы. Введите /start", show_alert=True)
-            return
-
-        today = datetime.now().date().isoformat()
-        last_bonus_date = user.get("last_bio_bonus_date")
-        bio_bonus_revoked = user.get("bio_bonus_revoked") or 0
-
-        # 🔍 Проверяем ссылку в био
-        has_link = await user_has_referral_in_bio(user_id, bot)
-
-        if not has_link:
-            expected_text = (
-                "⛔️ В вашей биографии не найдена реферальная ссылка.\n\n"
-                f"Добавьте её, чтобы получать +3 ⭐ каждый день:\n"
-                f"<code>https://t.me/{BOT_USERNAME}?start={user_id}</code>\n\n"
-                "📌 Как добавить ссылку в био:\n"
-                "│ 1️⃣ Откройте свой профиль Telegram.\n"
-                "│ 2️⃣ Нажмите 'Редактировать профиль'.\n"
-                "│ 3️⃣ Вставьте ссылку в поле 'О себе' (Bio).\n"
-                "│ 4️⃣ Сохраните изменения.\n\n"
-                "После этого нажмите кнопку ниже 'Проверить снова', чтобы получить бонус."
-        )
-            keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="Проверить снова", callback_data="bio_bonus")],
-                [InlineKeyboardButton(text="⬅️", callback_data="back_to_menu")]
-            ])
-
-            # ⚡️ Если текст отличается — редактируем сообщение
-            try:
-                if callback.message.text != expected_text:
-                    await callback.message.edit_text(expected_text, parse_mode="HTML", reply_markup=keyboard)
-                else:
-            # Если текст такой же, показываем alert
-                    await callback.answer("⏳ Если вы добавили попробуйте повторить проверку через одну минуту", show_alert=True)
-            except Exception:
-        # На всякий случай ловим любую ошибку TelegramBadRequest
-                await callback.answer("⏳ Если вы добавили попробуйте повторить проверку через одну минуту", show_alert=True)
-
-            return
-
-        # 🔄 Возврат бонуса, если ранее был отозван
-        if bio_bonus_revoked == 1 and has_link:
-            update_stars(user_id, 3, reason="bio_bonus_restored")
-            conn = get_conn()
-            cur = conn.cursor()
-            cur.execute("UPDATE users SET bio_bonus_revoked = 0 WHERE id = ?", (user_id,))
-            conn.commit()
-            await callback.message.answer("🎉 Вы вернули ссылку в био и получили обратно 3 ⭐!")
-
-        # 🛑 Проверка, получен ли бонус сегодня
-        if last_bonus_date == today:
-            next_bonus_time = (datetime.now().replace(hour=0, minute=0, second=0, microsecond=0) 
-                               + timedelta(days=1)).strftime("%H:%M")
-            await callback.answer(
-                f"⏳ Вы уже получили бонус за сегодня.\n🎁 Следующая возможность: завтра после {next_bonus_time}",
-                show_alert=True
-            )
-            return
-
-        # ✅ Выдаём ежедневный бонус
-        update_stars(user_id, 3, reason="bio_daily_bonus")
-        conn = get_conn()
-        cur = conn.cursor()
-        cur.execute(
-            "UPDATE users SET last_bio_bonus_date = ?, bio_bonus_revoked = 0 WHERE id = ?",
-            (today, user_id)
-        )
-        conn.commit()
-        await callback.message.answer("🎉 Бонус за ссылку в био был получен: +3 ⭐\n📌 Не забудь получить и завтра!")
-
-    finally:
-        processing_bonus.discard(user_id)
-
-
-
-
-
-async def auto_check_bio_links(bot):
-    while True:
-        try:
-            conn = get_conn()
-            cur = conn.cursor()
-            cur.execute("""
-                SELECT id, last_bio_bonus_date FROM users
-                WHERE last_bio_bonus_date IS NOT NULL
-                AND (bio_bonus_revoked = 0 OR bio_bonus_revoked IS NULL)
-            """)
-            users = cur.fetchall()
-
-            for row in users:
-                user_id = row["id"]
-                last_bonus_date = row["last_bio_bonus_date"]
-
-                if not last_bonus_date:
-                    continue
-
-                last_time = datetime.fromisoformat(last_bonus_date)
-                # Проверяем только тех, кто получил бонус менее 24 часов назад
-                if datetime.now() - last_time < timedelta(hours=24):
-                    has_link = await user_has_referral_in_bio(user_id, bot)
-                    if not has_link:
-                        # ⛔️ Снимаем 5 ⭐ и блокируем бонус
-                        update_stars(user_id, -3, reason="bio_bonus_revoked")
-                        cur2 = conn.cursor()
-                        cur2.execute("UPDATE users SET bio_bonus_revoked = 1 WHERE id = ?", (user_id,))
-                        conn.commit()
-
-                        try:
-                            await bot.send_message(
-                                user_id,
-                                "⚠️ Вы убрали реферальную ссылку из био.\n\n"
-                                "3 ⭐ были списаны с вашего баланса.\n"
-                                "Добавьте ссылку обратно, и вы снова сможете получить ежедневный бонус 🎁"
-                            )
-                        except Exception as e:
-                            print(f"[auto_check_bio_links] не удалось отправить сообщение {user_id}: {e}")
-
-            print(f"[✅ Проверка BIO завершена] {len(users)} пользователей проверено.")
-        except Exception as e:
-            print(f"[⛔️ Ошибка фоновой проверки]: {e}")
-
-        await asyncio.sleep(1000)  # проверка каждые 30 минут
-
-
-
 
 @router.message(lambda m: m.contact is not None)
 async def handle_contact(message: types.Message):
@@ -1637,13 +1493,6 @@ async def withdraw_amount_choice(callback: types.CallbackQuery):
             reply_markup=kb
         )
         await callback.answer()
-        return
-    
-
-        # --- 2. ПРОВЕРКА SUBGRAM ---
-    data_subgram = await subgram_check_wrapper(user=callback.from_user, message=callback.message, action="subscribe")
-    if not data_subgram.get("skip"):
-        # Если subgram_check_wrapper возвращает False, он обычно сам обрабатывает ответ
         return
 
     if not user:
@@ -3116,11 +2965,6 @@ async def process_coupon_stars(message: types.Message):
 @router.callback_query(F.data == "activate_coupon")
 async def activate_coupon_cb(callback: types.CallbackQuery):
     user_id = callback.from_user.id
-    data_subgram = await subgram_check_wrapper(user=callback.from_user, message=callback.message, action="subscribe")
-    if not data_subgram.get("skip"):
-        referrals.pop(user_id, None)
-        await callback.answer() # Снимаем ожидание с кнопки
-        return  
     referrals[user_id] = {"await_coupon": True}
     await callback.message.answer("Введите купон для активации:", reply_markup=backs_menu)
     await callback.answer() # Снимаем ожидание с кнопки
@@ -4073,12 +3917,6 @@ async def clicker_start(callback: types.CallbackQuery):
         await callback.answer()
         return
 
-    # --- 2. ПРОВЕРКА SUBGRAM ---
-    data_subgram = await subgram_check_wrapper(user=callback.from_user, message=callback.message, action="subscribe")
-    if not data_subgram.get("skip"):
-        # Если subgram_check_wrapper возвращает False, он обычно сам обрабатывает ответ
-        return
-
     # --- 3. Проверка регистрации ---
     if not user:
         await callback.message.answer("⚠️ Вы не зарегистрированы. Введите /start")
@@ -4154,13 +3992,6 @@ async def clicker_answer(callback: types.CallbackQuery):
         captcha_sessions.pop(user_id, None)
         processing_clicker.discard(user_id)
         await callback.answer()
-        return
-
-    # --- Проверка SUBGRAM ---
-    data_subgram = await subgram_check_wrapper(user=callback.from_user, message=callback.message, action="clicker_answer")
-    if not data_subgram.get("skip"):
-        captcha_sessions.pop(user_id, None)
-        processing_clicker.discard(user_id)
         return
 
     # --- Проверка регистрации ---
@@ -4350,5 +4181,4 @@ async def daily_promo_task(bot: Bot):
                 # Игнорируем ошибки (например, если пользователь заблокировал бота)
                 continue
         print("Промо-рассылка завершена.")
-
 
