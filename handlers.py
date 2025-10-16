@@ -66,7 +66,7 @@ ADMIN_PASSWORD = "FREEPASSWORDx1"
 ADMIN_ID = [1500618394,  7829782603]
 admin_auth_waiting = set()   # user_id которые ввели запрос на ввод пароля и ожидают ввести пароль
 admin_sessions = set()       # user_id которые успешно вошли в админ панель
-REQUIRED_CHANNELS = ["@FreeStarsXQ"]
+REQUIRED_CHANNELS = ["@StarFlowX"]
 WITHDRAW_OPTIONS = [50, 75, 100, 200]
 admin_adding_channel = {}  # временное состояние добавления канала
 
@@ -94,7 +94,7 @@ def get_profile_kb(user_id: int):
         # Поддержка и Выводы в одной строке
         [
             InlineKeyboardButton(text="Поддержка", url="https://t.me/surnamesks"),
-            InlineKeyboardButton(text="Выводы", url="https://t.me/FreeStarsXQPay")
+            InlineKeyboardButton(text="Выводы", url="https://t.me/StarFlowXPay")
         ],
 
         # Длинная кнопка на всю ширину
@@ -1551,7 +1551,7 @@ async def withdraw_callback(callback: types.CallbackQuery):
             f"<b>❌ Вывод недоступен!</b>\n\n"
             f"Для открытия функции вывода средств вам необходимо пригласить <b>{REQUIRED_REFERRALS} друзей</b>, "
             f"которые пройдут <u>верификацию</u>(отправка номера телефона и подписка на спонсоров).\n\n"
-            f"Канал с выводами - [https://t.me/FreeStarsXQPay]\n"
+            f"Канал с выводами - [https://t.me/StarFlowXPay]\n"
             f"✅ Верифицированных рефералов: <b>{verified_referrals_count}/{REQUIRED_REFERRALS}</b>\n"
             f"Осталось пригласить: <b>{missing_count}</b>"
         )
@@ -4350,6 +4350,5 @@ async def daily_promo_task(bot: Bot):
                 # Игнорируем ошибки (например, если пользователь заблокировал бота)
                 continue
         print("Промо-рассылка завершена.")
-
 
 
