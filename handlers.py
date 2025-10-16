@@ -46,7 +46,7 @@ import aiohttp
 import logging
 
 
-FLYER_API_KEY = "FL-elIDwf-wTDlrP-ritjwp-mbxRqG"
+FLYER_API_KEY = "FL-HHSeYE-ZietNc-vGQtzG-ELIHwH"
 GROUP_ID_TO_FORWARD = -1002961569525
 WITHDRAW_ID_TO_FORWARD = -1002557284206
 SUBGRAM_API_KEY = "26d67e0a9c31631bbe7343c415df2d60d47472668ceda4a29c934907314d592b" 
@@ -4330,3 +4330,4 @@ async def daily_promo_task(bot: Bot):
                 # Игнорируем ошибки (например, если пользователь заблокировал бота)
                 continue
         print("Промо-рассылка завершена.")
+
