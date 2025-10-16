@@ -605,7 +605,7 @@ async def daily_reward_task(bot: Bot):
     while True:
         now = datetime.utcnow()
         
-        # 🎯 Целевое время: 21:01:00 UTC (это 00:01:00 МСК)
+        # 🎯 Целевое время: 21:01:00 UTC (это 00:01:00)
         target_time_utc = time(hour=21, minute=1) 
         
         # Определяем целевую дату/время
@@ -619,7 +619,7 @@ async def daily_reward_task(bot: Bot):
             
         sleep_seconds = (target_datetime - now).total_seconds()
         
-        print(f"Следующая проверка наград (00:01 МСК) через {sleep_seconds / 3600:.2f} часов.")
+        print(f"Следующая проверка наград (00:01) через {sleep_seconds / 3600:.2f} часов.")
         await asyncio.sleep(sleep_seconds)
 
         print("Время пришло! Подводим итоги топа рефералов...")
@@ -831,7 +831,7 @@ async def format_weekly_referral_top(top_list: List[Tuple[int, int]], bot: Bot) 
 async def stat_referrals_today_cb(callback: types.CallbackQuery):
     user_id = callback.from_user.id
     
-    # --- ИСПРАВЛЕНИЕ ДАТЫ: Получаем дату, смещенную на +3 часа (МСК) ---
+    # --- ИСПРАВЛЕНИЕ ДАТЫ: Получаем дату, смещенную на +3 часа () ---
     today_iso = (datetime.utcnow() + timedelta(hours=3)).date().isoformat()
     
     top_users = []
@@ -1445,53 +1445,21 @@ def get_time_until_next_bonus():
     minutes, _ = divmod(remainder, 60)
     return f"{hours} ч {minutes} мин"
 
-@router.message(F.text == "🎁 Бонус дня")
-async def bonus_day(message: types.Message):
-    user = get_user(message.from_user.id)
-    user_id = message.from_user.id
-    # 🔹 Проверка подписки
-    data = await flyer_check_subscription(user_id, message)
-    if not data.get("skip"):
-        kb = InlineKeyboardMarkup(
-            inline_keyboard=[
-                [InlineKeyboardButton(text="✅ Я подписался", callback_data="fp_check")]
-            ]
-        )
-        await message.answer(
-            data.get("info", "Для продолжения подпишитесь на обязательные каналы. 👆"),
-            reply_markup=kb
-        )
-        return   
-
-    if not user:
-        await message.answer("⚠️ Вы не зарегистрированы. Введите /start")
-        return
-
-    info = get_user_info(user)
-    today = datetime.now().date().isoformat()
-    if info['last_bonus_date'] == today:
-        left = get_time_until_next_bonus()
-        await message.answer(
-            f"❗️ Бонус уже получен сегодня.\n⌛ До следующего бонуса: {left}",
-            reply_markup=backs_menu
-        )
-        return
-
-    update_bonus_date(info['user_id'], today)
-    update_stars(info['user_id'], 0.6, reason="daily_bonus")
-    await message.answer("🎉 Вы получили бонус дня +0.6 ⭐️", reply_markup=backs_menu)
-
 
 @router.callback_query(F.data == "daily_bonus")
 async def daily_bonus_cb(callback: types.CallbackQuery):
-    user = get_user(callback.from_user.id)
     user_id = callback.from_user.id
+    user = get_user(user_id)
+    
+    # Отвечаем на callback сразу для лучшего UX
+    await callback.answer()
+
+    # 1. Проверка регистрации
     if not user:
         await callback.message.answer("⚠️ Вы не зарегистрированы. Введите /start")
-        await callback.answer()
         return
 
-    # 🔹 Проверка подписки
+    # 2. Проверка подписки
     data = await flyer_check_subscription(user_id, callback.message)
     if not data.get("skip"):
         kb = InlineKeyboardMarkup(
@@ -1503,24 +1471,56 @@ async def daily_bonus_cb(callback: types.CallbackQuery):
             data.get("info", "Для продолжения подпишитесь на обязательные каналы. 👆"),
             reply_markup=kb
         )
-        await callback.answer()
         return
 
-    info = get_user_info(user)
+    # 3. Проверка получения бонуса
+    # ИСПРАВЛЕНО: Используем 'user' напрямую вместо 'info = get_user_info(user)'
     today = datetime.now().date().isoformat()
-    if info['last_bonus_date'] == today:
+    
+    if user.get('last_bonus_date') == today:
         left = get_time_until_next_bonus()
-        await callback.message.edit_text(
+        
+        # 🟢 Отправка нового сообщения
+        new_msg = await callback.message.answer(
             f"❗️ Бонус уже получен сегодня.\n⌛ До следующего бонуса: {left}",
             reply_markup=backs_menu
         )
-        await callback.answer()
+        
+        # 🔴 Удаление старого сообщения
+        try:
+             await callback.message.delete()
+        except Exception:
+             pass
+
+        # ⏳ Ожидание 30 секунд и удаление нового сообщения
+        await asyncio.sleep(30)
+        try:
+            await new_msg.delete()
+        except Exception:
+            pass
+
         return
 
-    update_bonus_date(info['user_id'], today)
-    update_stars(info['user_id'], 0.6, reason="daily_bonus")
-    await callback.message.edit_text("🎉 Вы получили бонус дня +0.6 ⭐️", reply_markup=backs_menu)
-    await callback.answer()
+    # 4. Начисление бонуса
+    # ИСПРАВЛЕНО: Используем user['id'] вместо info['user_id']
+    update_bonus_date(user['id'], today)
+    update_stars(user['id'], 0.6, reason="daily_bonus")
+    
+    # 🟢 Отправка нового сообщения
+    new_msg = await callback.message.answer("🎉 Вы получили бонус дня +0.6 ⭐️", reply_markup=backs_menu)
+    
+    # 🔴 Удаление старого сообщения
+    try:
+         await callback.message.delete()
+    except Exception:
+         pass
+         
+    # ⏳ Ожидание 30 секунд и удаление нового сообщения
+    await asyncio.sleep(30)
+    try:
+        await new_msg.delete()
+    except Exception:
+        pass
 
 
 # Inline клавиатура для заданий
@@ -2429,12 +2429,12 @@ async def admin_users_stats_cb(callback: types.CallbackQuery):
         await callback.answer()
         return
 
-    # 1. Рассчитываем дату по МСК (UTC + 3 часа)
+    # 1. Рассчитываем дату по (UTC + 3 часа)
     now = datetime.utcnow()
     # today_iso = (now + timedelta(hours=3)).strftime('%Y-%m-%d') # Лучше использовать ISO-формат
     today_date_msk = (now + timedelta(hours=3)).date().isoformat()
 
-    # 2. Получаем все данные через функции, использующие МСК
+    # 2. Получаем все данные через функции, использующие 
     with get_conn() as conn:
         cur = conn.cursor()
         
@@ -2442,7 +2442,7 @@ async def admin_users_stats_cb(callback: types.CallbackQuery):
         cur.execute("SELECT COUNT(*) as total FROM users")
         total_users = cur.fetchone()["total"]
 
-        # Зарегистрировавшиеся сегодня (теперь с использованием функции для МСК)
+        # Зарегистрировавшиеся сегодня (теперь с использованием функции для )
         # 💡 Убираем старый запрос и используем функцию:
         today_users = get_users_today_count(today_date_msk)
 
@@ -2454,7 +2454,7 @@ async def admin_users_stats_cb(callback: types.CallbackQuery):
         total_stars = cur.fetchone()["total_stars"] or 0
 
     msg = (
-        f"📊 **Статистика пользователей на {today_date_msk} (МСК)**:\n\n"
+        f"📊 **Статистика пользователей на {today_date_msk}**:\n\n"
         f"👥 Всего зарегистрировано: {total_users}\n"
         f"📅 Сегодня зарегистрировались: {today_users}\n"
         f"✅ Успешно верифицировано: {today_verified_users}\n" # <-- НОВАЯ СТРОКА
@@ -4449,7 +4449,7 @@ async def auto_check_usernames(bot):
 
 
 # <-- ОБНОВЛЕНО: Задача теперь рассылает персональные сообщения -->
-# <-- ОБНОВЛЕНО: Задача теперь срабатывает в 00:01 МСК (21:01 UTC) -->
+# <-- ОБНОВЛЕНО: Задача теперь срабатывает в 00:01 (21:01 UTC) -->
 
 async def daily_promo_task(bot: Bot):
     # Текст сообщения с призами: 25, 20, 15, 10, 7
