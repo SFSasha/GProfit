@@ -34,7 +34,8 @@ from database import (
     get_verified_users_today_count,
     get_verified_referrals_count,
     get_referral_top_for_week,
-    set_user_verified
+    set_user_verified,
+    get_current_multiplier
 )
 from aiogram.filters import Command
 from database import get_top_clicker_users
@@ -133,12 +134,11 @@ main_menu_kb = InlineKeyboardMarkup(inline_keyboard=[
         InlineKeyboardButton(text="✨ Кликер ✨", callback_data="clicker"),
     ],
     [
-        InlineKeyboardButton(text="VIP-подписки", callback_data="VIP_pod"),
-        InlineKeyboardButton(text="Магазин бустеров", callback_data="roulette_menu"),
+        InlineKeyboardButton(text="VIP-подписки", url="https://t.me/+jZY37XZ12Cw0NjZi"),
+        InlineKeyboardButton(text="Задания", callback_data="tasks"),
     ],
     [
         InlineKeyboardButton(text="Статистика", callback_data="statistics"),
-        InlineKeyboardButton(text="Задания", callback_data="tasks"),
     ],
     [
         InlineKeyboardButton(text="📊 Реферальная сcылка 📊", callback_data="ref_link"),
@@ -1650,7 +1650,7 @@ async def withdraw_amount_choice(callback: types.CallbackQuery):
     
     await callback.message.answer(f"✅ Заявка #{req_id} на вывод {amount} ⭐️ создана и ожидает рассмотрения в течении 24-х часов")
     await callback.answer()
-    
+
 
 # Inline клавиатура для заданий
 def task_kb(task_id: int) -> InlineKeyboardMarkup:
