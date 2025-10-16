@@ -134,7 +134,7 @@ main_menu_kb = InlineKeyboardMarkup(inline_keyboard=[
         InlineKeyboardButton(text="✨ Кликер ✨", callback_data="clicker"),
     ],
     [
-        InlineKeyboardButton(text="VIP-подписки", url="https://t.me/+jZY37XZ12Cw0NjZi"),
+        InlineKeyboardButton(text="VIP-Промо", url="https://t.me/+jZY37XZ12Cw0NjZi"),
         InlineKeyboardButton(text="Задания", callback_data="tasks"),
     ],
     [
@@ -727,15 +727,6 @@ async def format_weekly_referral_top(top_list: List[Tuple[int, int]]) -> str:
             user_link = f"Пользователь ID:{user_id}"
 
         top_text += f"{emoji} *{user_link}* - {count} рефералов\n"
-
-    # --- Добавление наград ---
-    top_text += "\n\n"
-    top_text += "*Награды для Топ-5 Победителей еженедельного топа:*\n"
-    top_text += "*1 место:* 500 ⭐️\n"
-    top_text += "*2 место:* 300 ⭐️\n"
-    top_text += "*3 место:* 200 ⭐️\n"
-    top_text += "*4 место:* 100 ⭐️\n"
-    top_text += "*5 место:* 50 ⭐️\n"
     # -------------------------
 
     return top_text
@@ -857,7 +848,7 @@ async def stat_referrals_today_cb(callback: types.CallbackQuery):
     
     # Заглушка, если нет пользователей вообще (переопределяет lines)
     if not top_users:
-        text = f"<b>{title}</b>\n\nСегодня еще никто не приглашал друзей. Станьте первым!"
+        final_text = f"<b>{title}</b>\n\nСегодня еще никто не приглашал друзей. Станьте первым!"
     else:
         # Цикл всегда идет 5 раз
         for i in range(5):
@@ -872,6 +863,20 @@ async def stat_referrals_today_cb(callback: types.CallbackQuery):
                 lines.append(f"{emoji} <i>Кандидат не найден. Приглашай первым!</i>")
                 
         text = "\n".join(lines)
+
+        # --- ИСПРАВЛЕНИЕ НАЧАЛОСЬ ЗДЕСЬ ---
+        # Использование только HTML-тегов для объединения с основным текстом
+        weekly_reward_html = (
+            "\n\n<blockquote><b>Награды для Топ-5 Победителей еженедельного топа:</b>\n"
+            "1 место: 30 ⭐️\n"
+            "2 место: 20 ⭐️\n"
+            "3 место: 10 ⭐️\n"
+            "4 место: 8 ⭐️\n"
+            "5 место: 5 ⭐️"
+            "</blockquote>" # <--- ОБЯЗАТЕЛЬНО ЗАКРЫВАЕМ
+        )
+        
+        final_text = text + weekly_reward_html
 
     # Добавляем персональную информацию о месте пользователя
     my_rank_data = all_ranks.get(user_id)
@@ -1527,7 +1532,7 @@ async def withdraw_callback(callback: types.CallbackQuery):
         text = (
             f"<b>❌ Вывод недоступен!</b>\n\n"
             f"Для открытия функции вывода средств вам необходимо пригласить <b>{REQUIRED_REFERRALS} друзей</b>, "
-            f"которые пройдут <u>полную верификацию</u> (отправка номера телефона и проверка подписки спонсоров).\n\n"
+            f"которые пройдут <u>верификацию</u>(отправка номера телефона и подписка на спонсоров).\n\n"
             f"Канал с выводами - [https://t.me/FreeStarsXQPay]\n"
             f"✅ Верифицированных рефералов: <b>{verified_referrals_count}/{REQUIRED_REFERRALS}</b>\n"
             f"Осталось пригласить: <b>{missing_count}</b>"
