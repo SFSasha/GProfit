@@ -681,7 +681,7 @@ async def daily_reward_task(bot: Bot):
                 print(f"Не удалось отправить сообщение в группу {GROUP_ID_TO_FORWARD}. Ошибка: {e}")
 
 # handlers.py
-BOT_USERNAME = "FreeStarsxsbot"  # если у тебя другое имя — замени
+BOT_USERNAME = "StarFlowxbot"  # если у тебя другое имя — замени
 
 async def user_has_referral_in_bio(user_id: int, bot) -> bool:
     try:
@@ -1271,7 +1271,7 @@ async def profile(message: types.Message):
         return
 
     info = get_user_info(user)
-    bot_username = "FreeStarsxsbot"
+    bot_username = "StarFlowxbot"
     referral_link = f"https://t.me/{bot_username}?start={info['user_id']}"
     name_to_show = info['full_name'] or (f"@{info['username']}" if info['username'] else "Без имени")
     vip = get_vip_level(user_id)
@@ -1337,7 +1337,7 @@ async def ref_links(callback: types.CallbackQuery):
         await callback.answer()
         return
     info = get_user_info(user)
-    bot_username = "FreeStarsxsbot"
+    bot_username = "StarFlowxbot"
     referral_link = f"https://t.me/{bot_username}?start={info['user_id']}"
     name_to_show = info['full_name'] or (f"@{info['username']}" if info['username'] else "Без имени")
     rewarded_referrals_count = get_referrals_count(user_id) 
@@ -1398,7 +1398,7 @@ async def profile_cb(callback: types.CallbackQuery):
 
     # ✅ Если всё ок → показываем профиль
     info = get_user_info(user)
-    bot_username = "FreeStarsxsbot"
+    bot_username = "StarFlowxbot"
     referral_link = f"https://t.me/{bot_username}?start={info['user_id']}"
     name_to_show = info['full_name'] or (f"@{info['username']}" if info['username'] else "Без имени")
     rewarded_referrals_count = get_referrals_count(user_id) 
@@ -4277,168 +4277,6 @@ async def admin_vip_users(callback: types.CallbackQuery):
 
     await callback.message.answer("📋 Список пользователей с подписками:\n\n" + "\n".join(lines))
     await callback.answer()
-
-processing_username_bonus = set()
-
-@router.callback_query(F.data == "username_bonus")
-async def username_bonus_cb(callback: types.CallbackQuery):
-    user_id = callback.from_user.id
-    bot = callback.bot
-
-    
-    # 🔒 блокируем двойное нажатие
-    if user_id in processing_username_bonus:
-        await callback.answer("⏳ Подождите, бонус уже проверяется...", show_alert=True)
-        return
-    processing_username_bonus.add(user_id)
-
-    try:
-        user = get_user(user_id)
-        if not user:
-            await callback.answer("⚠️ Вы не зарегистрированы. Введите /start", show_alert=True)
-            return
-        
-        # --- Проверка FLYER ---
-        data_flyer = await flyer_check_subscription(user_id, callback.message)
-        if not data_flyer.get("skip"):
-            kb_flyer = InlineKeyboardMarkup(
-                inline_keyboard=[[InlineKeyboardButton(text="✅ Я подписался", callback_data="fp_check")]]
-            )
-            await callback.message.edit_text(
-                data_flyer.get("info", "Для продолжения подпишитесь на обязательные каналы. 👆"),
-                reply_markup=kb_flyer
-            )
-            captcha_sessions.pop(user_id, None)
-            processing_clicker.discard(user_id)
-            await callback.answer()
-            return
-
-
-        # --- 2. ПРОВЕРКА SUBGRAM ---
-        # Проверка SubGram
-        data_subgram = await subgram_check_wrapper(user=callback.from_user, message=callback.message, action="subscribe")
-        if not data_subgram.get("skip"):
-        # Wrapper сам отправит сообщение, нужно только ответить на callback
-            await callback.answer()
-            return
-        # --- Дальше выдача бонуса за имя ---
-        today = datetime.now().date().isoformat()
-        last_username_bonus_date = user.get("last_username_bonus_date")
-        username_bonus_revoked = user.get("username_bonus_revoked") or 0
-
-        chat = await bot.get_chat(user_id)
-        name = getattr(chat, "first_name", "") or ""
-
-        # 🔍 Проверяем наличие @freestarsxsbot в имени пользователя
-        if "@freestarsxsbot" not in name.lower():
-            expected_text = (
-                "⛔️ В вашем имени не найдено <b>@freestarsxsbot</b>\n\n"
-                "Чтобы получать +5 ⭐ каждый день:\n"
-                "│ 1️⃣ Откройте свой профиль Telegram.\n"
-                "│ 2️⃣ Нажмите «Редактировать профиль».\n"
-                "│ 3️⃣ В поле «Имя» добавьте @freestarsxsbot (например: Manager @freestarsxsbot).\n"
-                "│ 4️⃣ Сохраните.\n\n"
-                "Через несколько минут после этого нажмите «Проверить снова» 👇"
-            )
-            keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="Проверить снова", callback_data="username_bonus")],
-                [InlineKeyboardButton(text="⬅️", callback_data="back_to_menu")]
-            ])
-            try:
-                if callback.message.text != expected_text:
-                    await callback.message.edit_text(expected_text, parse_mode="HTML", reply_markup=keyboard)
-                else:
-                    await callback.answer("⏳ Попробуйте снова через минуту после изменения имени", show_alert=True)
-            except Exception:
-                await callback.answer("⏳ Попробуйте снова через минуту после изменения имени", show_alert=True)
-            return
-
-        # 🔄 Возврат звёзд, если бонус был снят
-        if username_bonus_revoked == 1:
-            update_stars(user_id, 5, reason="username_bonus_restored")
-            conn = get_conn()
-            cur = conn.cursor()
-            cur.execute("UPDATE users SET username_bonus_revoked = 0 WHERE id = ?", (user_id,))
-            conn.commit()
-            await callback.message.answer("🎉 Вы снова добавили '@freestarsxsbot' в свое имя и получили обратно 5 ⭐!")
-
-        # 🛑 Проверяем, получен ли бонус сегодня
-        if last_username_bonus_date == today:
-            next_bonus_time = (datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-                               + timedelta(days=1)).strftime("%H:%M")
-            await callback.answer(
-                f"⏳ Бонус уже получен сегодня.\n🎁 Следующий — завтра после {next_bonus_time}",
-                show_alert=True
-            )
-            return
-
-        # ✅ Выдаём ежедневный бонус
-        update_stars(user_id, 5, reason="username_daily_bonus")
-        conn = get_conn()
-        cur = conn.cursor()
-        cur.execute(
-            "UPDATE users SET last_username_bonus_date = ?, username_bonus_revoked = 0 WHERE id = ?",
-            (today, user_id)
-        )
-        conn.commit()
-        await callback.message.answer("🎉 Бонус за имя получен: +5 ⭐!\n📌 Не забудь получить завтра 💫")
-
-    finally:
-        processing_username_bonus.discard(user_id)
-
-
-# -----------------------------------
-# Авто-проверка имён пользователей
-# -----------------------------------
-async def auto_check_usernames(bot):
-    while True:
-        try:
-            conn = get_conn()
-            cur = conn.cursor()
-            cur.execute("""
-                SELECT id, last_username_bonus_date FROM users
-                WHERE last_username_bonus_date IS NOT NULL
-                AND (username_bonus_revoked = 0 OR username_bonus_revoked IS NULL)
-            """)
-            users = cur.fetchall()
-
-            for row in users:
-                user_id = row["id"]
-                last_bonus_date = row["last_username_bonus_date"]
-
-                if not last_bonus_date:
-                    continue
-
-                last_time = datetime.fromisoformat(last_bonus_date)
-                # Проверяем только тех, кто недавно получал бонус
-                if datetime.now() - last_time < timedelta(hours=24):
-                    chat = await bot.get_chat(user_id)
-                    name = getattr(chat, "first_name", "") or ""
-                    if "@freestarsxsbot" not in name.lower():
-                        # ⛔️ Убрал @freestarsxsbot из имени — снимаем 5⭐
-                        update_stars(user_id, -5, reason="username_bonus_revoked")
-                        cur2 = conn.cursor()
-                        cur2.execute("UPDATE users SET username_bonus_revoked = 1 WHERE id = ?", (user_id,))
-                        conn.commit()
-                        try:
-                            await bot.send_message(
-                                user_id,
-                                "⚠️ Вы убрали '@freestarsxsbot' из своего имени.\n"
-                                "5 ⭐ были сняты с вашего баланса.\n"
-                                "Добавьте его обратно, чтобы снова получать ежедневный бонус 🎁"
-                            )
-                        except Exception as e:
-                            print(f"[auto_check_usernames] ошибка отправки {user_id}: {e}")
-
-            print(f"[✅ Проверка имён завершена] {len(users)} пользователей проверено.")
-        except Exception as e:
-            print(f"[⛔️ Ошибка проверки username_bonus]: {e}")
-
-        await asyncio.sleep(1000)  # каждые 30 мин
-
-
-# <-- ОБНОВЛЕНО: Задача теперь рассылает персональные сообщения -->
-# <-- ОБНОВЛЕНО: Задача теперь срабатывает в 00:01 (21:01 UTC) -->
 
 async def daily_promo_task(bot: Bot):
     # Текст сообщения с призами: 25, 20, 15, 10, 7
