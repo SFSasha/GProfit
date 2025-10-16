@@ -16,9 +16,6 @@ async def main():
     bot = Bot(token=BOT_TOKEN)
     dp = Dispatcher()
     dp.include_router(router)
-
-    asyncio.create_task(daily_reward_task(bot))
-    asyncio.create_task(daily_promo_task(bot))
   
     log.info("Starting bot...")
     await dp.start_polling(bot)
@@ -27,6 +24,7 @@ async def main():
 if __name__ == "__main__":
     conn = get_conn()
     asyncio.run(main())
+
 
 
 
