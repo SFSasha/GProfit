@@ -820,17 +820,17 @@ async def format_weekly_referral_top(top_list: List[Tuple[int, int]], bot: Bot) 
 async def stat_referrals_today_cb(callback: types.CallbackQuery):
     user_id = callback.from_user.id
     
-    # --- ИСПРАВЛЕНИЕ ДАТЫ: Получаем дату, смещенную на +3 часа () ---
+    # --- ИСПРАВЛЕНИЕ ДАТЫ: Получаем дату, смещенную на +3 часа (МСК) ---
     today_iso = (datetime.utcnow() + timedelta(hours=3)).date().isoformat()
     
     top_users = []
     all_ranks = {}
-    final_text = "" # <-- Добавлено для инициализации, хотя и необязательно
     
     # --- БЛОК 1: ПОЛУЧЕНИЕ ДАННЫХ ИЗ БАЗЫ ДАННЫХ ---
     try:
-        top_users = get_referral_top_for_date(today_iso, limit=5)
-        all_ranks = get_all_referral_ranks_for_date(today_iso)
+        # ПРЕДПОЛАГАЕТСЯ, ЧТО ЭТИ ФУНКЦИИ ДОСТУПНЫ
+        top_users = get_referral_top_for_date(today_iso, limit=5) 
+        all_ranks = get_all_referral_ranks_for_date(today_iso) 
     except Exception as db_e:
         # ... (Логика обработки ошибок БД остается прежней)
         print(f"[FATAL ERROR] Ошибка запроса к БД в stat_referrals_today_cb: {db_e}")
@@ -839,73 +839,74 @@ async def stat_referrals_today_cb(callback: types.CallbackQuery):
         return 
 
     # -------------------------------------------------------------
-    # --- БЛОК 2: ФОРМИРОВАНИЕ ТЕКСТА (ИСПРАВЛЕНО ДЛЯ ЗАГЛУШЕК) ---
+    # --- БЛОК 2: ФОРМИРОВАНИЕ ТЕКСТА (ИСПРАВЛЕНО ДЛЯ ВСЕГДА ВИДНЫХ НАГРАД) ---
     # -------------------------------------------------------------
     title = "🏆 Топ-5 по приглашениям за сегодня"
     
-    # Всегда показываем заголовок
-    lines = [f"<b>{title}</b>\n"]
+    # Инициализация основного блока текста топа
+    top_block_text = ""
     medals = ["🥇", "🥈", "🥉", "4.", "5."]
     
-    # Заглушка, если нет пользователей вообще (переопределяет final_text)
+    # 1. ФОРМИРОВАНИЕ ОСНОВНОГО БЛОКА ТОПА (или заглушки)
     if not top_users:
-        final_text = f"<b>{title}</b>\n\nСегодня еще никто не приглашал друзей. Станьте первым!"
+        # Если топ пуст, используем заглушку
+        top_block_text = f"<b>{title}</b>\n\nСегодня еще никто не приглашал друзей. Станьте первым!"
     else:
-        # Цикл всегда идет 5 раз
+        # Если топ не пуст, формируем список 
+        lines = [f"<b>{title}</b>\n"]
         for i in range(5):
             emoji = medals[i]
             
             if i < len(top_users):
-                # Если есть реальный пользователь на этом месте
                 user_data = top_users[i]
                 lines.append(f"{emoji} <b>{user_data['name']}</b> — {user_data['count']} человек")
             else:
-                # Если места с i+1 по 5-е пустые, используем заглушку
                 lines.append(f"{emoji} <i>Кандидат не найден. Приглашай первым!</i>")
                 
-        text = "\n".join(lines)
+        top_block_text = "\n".join(lines)
 
-        # --- Блок с наградами ---
-        weekly_reward_html = (
-            "\n\n<blockquote><b>Награды для Топ-5 Победителей еженедельного топа:</b>\n"
-            "1 место: 30 ⭐️\n"
-            "2 место: 20 ⭐️\n"
-            "3 место: 10 ⭐️\n"
-            "4 место: 8 ⭐️\n"
-            "5 место: 5 ⭐️"
-            "</blockquote>"
-        )
-        
-        # final_text теперь содержит ТОП + Награды
-        final_text = text + weekly_reward_html 
 
-    # Добавляем персональную информацию о месте пользователя
+    # 2. ФОРМИРОВАНИЕ БЛОКА НАГРАД (ВЫНЕСЕНО ИЗ IF/ELSE, ОТОБРАЖАЕТСЯ ВСЕГДА)
+    weekly_reward_html = (
+        "\n\n<blockquote><b>Награды для Топ-5 Победителей еженедельного топа:</b>\n"
+        "1 место: 30 ⭐️\n"
+        "2 место: 20 ⭐️\n"
+        "3 место: 10 ⭐️\n"
+        "4 место: 8 ⭐️\n"
+        "5 место: 5 ⭐️"
+        "</blockquote>"
+    )
+    
+    # 3. ОБЪЕДИНЕНИЕ: Топ + Награды
+    final_text = top_block_text + weekly_reward_html
+
+
+    # 4. ДОБАВЛЕНИЕ ПЕРСОНАЛЬНОЙ ИНФОРМАЦИИ
     my_rank_data = all_ranks.get(user_id)
     if my_rank_data:
-        # ИСПРАВЛЕНИЕ: Добавляем к final_text, а не к text
         final_text += f"\n\nВаше место в топе: <b>{my_rank_data['rank']}</b> ({my_rank_data['count']} приглашенных)"
 
     # --- БЛОК 3: РЕДАКТИРОВАНИЕ/ОТПРАВКА СООБЩЕНИЯ ---
     try:
-        # ИСПРАВЛЕНИЕ: Используем final_text
+        # Используем final_text
         await callback.message.edit_caption(
             caption=final_text, 
             parse_mode="HTML",
-            reply_markup=statistics_back_kb
+            reply_markup=statistics_back_kb # ПРЕДПОЛАГАЕТСЯ, ЧТО ЭТА КЛАВИАТУРА ДОСТУПНА
         )
     except TelegramBadRequest as e:
         if "message is not modified" in str(e):
             pass 
         else:
             try:
-                # ИСПРАВЛЕНИЕ: Используем final_text
+                # Используем final_text
                 await callback.message.edit_text(
                     text=final_text,
                     parse_mode="HTML",
                     reply_markup=statistics_back_kb
                 )
             except TelegramBadRequest:
-                # ИСПРАВЛЕНИЕ: Используем final_text
+                # Используем final_text
                 await callback.message.answer(
                     final_text,
                     parse_mode="HTML",
@@ -913,12 +914,12 @@ async def stat_referrals_today_cb(callback: types.CallbackQuery):
                 )
             except Exception as inner_e:
                 print(f"[FINAL ERROR IN EDIT_TEXT] {inner_e}")
-                # ИСПРАВЛЕНИЕ: Используем final_text
+                # Используем final_text
                 await callback.message.answer(final_text, parse_mode="HTML", reply_markup=statistics_back_kb)
 
     except Exception as final_e:
         print(f"[FINAL CATCH ERROR] Непредвиденная ошибка в блоке edit/answer: {final_e}")
-        # ИСПРАВЛЕНИЕ: Используем final_text
+        # Используем final_text
         await callback.message.answer(final_text, parse_mode="HTML", reply_markup=statistics_back_kb)
         
     await callback.answer()
