@@ -71,7 +71,7 @@ WITHDRAW_OPTIONS = [50, 75, 100, 200]
 admin_adding_channel = {}  # временное состояние добавления канала
 
 FIXED_TASKS = [
-    {"id": -1, "url": "https://t.me/+VDA7NAoJBbkwZjQy", "check_id": -1002996957244, "stars": 10},
+    {"id": -1, "url": "https://t.me/+jZY37XZ12Cw0NjZi", "check_id": -1002996957244, "stars": 10},
 ]
 
 def reset_user_states(user_id: int):
@@ -4351,3 +4351,4 @@ async def daily_promo_task(bot: Bot):
                 # Игнорируем ошибки (например, если пользователь заблокировал бота)
                 continue
         print("Промо-рассылка завершена.")
+
