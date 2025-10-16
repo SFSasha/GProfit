@@ -87,7 +87,7 @@ def get_profile_kb(user_id: int):
         # Две короткие кнопки рядом
         [
             InlineKeyboardButton(text="🏷 Активировать купон", callback_data="activate_coupon"),
-            InlineKeyboardButton(text="🎁 Ежедневки", callback_data="bonusik"),
+            InlineKeyboardButton(text="🎁 Ежедневный бонус", callback_data="daily_bonus"),
         ],
 
         # Поддержка и Выводы в одной строке
@@ -113,7 +113,6 @@ def get_profile_kb(user_id: int):
 statistics_menu_kb = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🏆 Топ рефералов сегодня", callback_data="stat_referrals_today")], 
     [InlineKeyboardButton(text="🏆 Топ рефералов за неделю", callback_data="show_weekly_top")],
-    [InlineKeyboardButton(text="Топ заработаных звезд за сегодня", callback_data="stat_today")],
     [InlineKeyboardButton(text="Топ кликера", callback_data="clicker_top")],
     [
         InlineKeyboardButton(text="⬅️", callback_data="back_to_menu"),
@@ -145,18 +144,6 @@ main_menu_kb = InlineKeyboardMarkup(inline_keyboard=[
         InlineKeyboardButton(text="📊 Реферальная сcылка 📊", callback_data="ref_link"),
     ]
 ])
-
-bonusiks = InlineKeyboardMarkup(
-    inline_keyboard=[
-        [
-            InlineKeyboardButton(text="🎁 + Никнейм", callback_data="username_bonus"),
-            InlineKeyboardButton(text="🎁 + Описание", callback_data="bio_bonus"),
-        ],
-        [
-            InlineKeyboardButton(text="⬅️", callback_data="back_to_menu"),
-        ]
-    ]
-)
 vip_help_kb = InlineKeyboardMarkup(inline_keyboard=[
     [
         InlineKeyboardButton(text="VIP-подписка I степени  ", url="https://t.me/+3XXGoaVvI7ViNTQy"),
@@ -1746,42 +1733,6 @@ async def back_to_menu_cb(callback: types.CallbackQuery):
             caption=msg,
             parse_mode="HTML",
             reply_markup=main_menu_kb
-        )
-
-    # 🔹 подтверждаем callback (один раз!)
-    await callback.answer()
-
-
-
-@router.callback_query(F.data == "bonusik")
-async def bonusik_to_menu_cb(callback: types.CallbackQuery):
-    user_id = callback.from_user.id
-    data = await flyer_check_subscription(user_id, callback.message)
-
-    if not data.get("skip"):
-        # ❌ нет подписки → показываем кнопку "Я подписался"
-        kb = InlineKeyboardMarkup(
-            inline_keyboard=[
-                [InlineKeyboardButton(text="✅ Я подписался", callback_data="fp_check")]
-            ]
-        )
-        try:
-            await callback.message.answer(
-                data.get("info", "Для продолжения подпишитесь на обязательные каналы. 👆"),
-                reply_markup=kb
-            )
-        except:
-            pass
-    else:
-        # ✅ подписка есть → открываем главное меню
-        try:
-            await callback.message.delete()
-        except:
-            pass
-        await callback.message.answer(
-                "📌 <b>Ежедневки</b>\n\n🎁 <i>Бонус дня: за добавления в ваше имя профиля Telegram: @freestarsxsbot - награда <b>5</b> ⭐️ каждый день </i>\n\n🎁 <i>Бонус дня: за добавления в ваше описания профиля вашу реферальную ссылку бота - награда <b>3</b> ⭐️ каждый день </i>",
-            reply_markup=bonusiks,
-            parse_mode="HTML"
         )
 
     # 🔹 подтверждаем callback (один раз!)
