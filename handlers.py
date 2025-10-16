@@ -97,7 +97,7 @@ def get_profile_kb(user_id: int):
         ],
 
         # Длинная кнопка на всю ширину
-        [InlineKeyboardButton(text="Вывод звезд", callback_data="withdraw")]
+        [InlineKeyboardButton(text="Вывести звезды", callback_data="withdraw")]
     ]
     # Кнопка админа только для тебя
     if user_id in ADMIN_ID:
@@ -1510,6 +1510,148 @@ async def daily_bonus_cb(callback: types.CallbackQuery):
         pass
 
 
+
+@router.callback_query(F.data == "withdraw")
+async def withdraw_callback(callback: types.CallbackQuery):
+    user_id = callback.from_user.id
+    
+    # --- НАЧАЛО НОВОЙ ЛОГИКИ ПРОВЕРКИ РЕФЕРАЛОВ ---
+    REQUIRED_REFERRALS = 2
+    
+    # ✅ ИСПРАВЛЕНО: Синхронная функция обернута в asyncio.to_thread
+    verified_referrals_count = await asyncio.to_thread(get_verified_referrals_count, user_id)
+
+    if verified_referrals_count < REQUIRED_REFERRALS:
+        # Условие не выполнено. Блокируем вывод.
+        missing_count = REQUIRED_REFERRALS - verified_referrals_count
+        
+        # Формируем сообщение о блокировке
+        text = (
+            f"<b>❌ Вывод недоступен!</b>\n\n"
+            f"Для открытия функции вывода средств вам необходимо пригласить <b>{REQUIRED_REFERRALS} друзей</b>, "
+            f"которые пройдут <u>полную верификацию</u> (отправка номера телефона и проверка подписки спонсоров).\n\n"
+            f"Канал с выводами - [https://t.me/FreeStarsXQPay]\n"
+            f"✅ Верифицированных рефералов: <b>{verified_referrals_count}/{REQUIRED_REFERRALS}</b>\n"
+            f"Осталось пригласить: <b>{missing_count}</b>"
+        )
+        
+        # Клавиатура с ссылкой на реферальную информацию
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="📊 Реферальная сcылка 📊", callback_data="ref_link")],
+            [InlineKeyboardButton(text="⬅️ В Профиль", callback_data="profile")]
+        ])
+
+        # Пытаемся отредактировать сообщение (если это Профиль), иначе отправляем новое
+        try:
+            await callback.message.edit_caption(
+                caption=text,
+                parse_mode="HTML",
+                reply_markup=keyboard
+            )
+        except Exception:
+            await callback.message.answer(
+                text=text,
+                parse_mode="HTML",
+                reply_markup=keyboard
+            )
+        
+        await callback.answer(f"❌ Нужно еще {missing_count} верифицированных рефералов.", show_alert=True)
+        return
+    # --- КОНЕЦ НОВОЙ ЛОГИКИ ПРОВЕРКИ РЕФЕРАЛОВ ---
+
+    # --- СТАРТ СУЩЕСТВУЮЩЕЙ ЛОГИКИ ВЫВОДА (если условие выполнено) ---
+    # ✅ ИСПРАВЛЕНО: Синхронная функция обернута в asyncio.to_thread
+    user = await asyncio.to_thread(get_user, user_id) 
+    stars = user.get("stars", 0)
+    
+    withdraw_text = (
+        f"💰 Ваш баланс: <b>{stars:.2f} ⭐</b>\n"
+        f"Выберите сумму для вывода:"
+    )
+    
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    # NOTE: Используем предполагаемые опции для создания кнопок
+    WITHDRAW_OPTIONS = [50, 75, 100, 200] 
+    
+    withdraw_kb = InlineKeyboardBuilder()
+    for amount in WITHDRAW_OPTIONS:
+        withdraw_kb.button(text=f"{amount} ⭐", callback_data=f"withdraw_amount_{amount}")
+        
+    withdraw_kb.adjust(2)
+    withdraw_kb.row(InlineKeyboardButton(text="⬅️ В Профиль", callback_data="profile"))
+
+    try:
+        await callback.message.edit_caption(
+            caption=withdraw_text,
+            parse_mode="HTML",
+            reply_markup=withdraw_kb.as_markup()
+        )
+    except Exception:
+        await callback.message.answer(
+            text=withdraw_text,
+            parse_mode="HTML",
+            reply_markup=withdraw_kb.as_markup()
+        )
+    
+    await callback.answer()
+    
+# Выбор суммы для вывода
+@router.callback_query(F.data.startswith("withdraw_amount_"))
+async def withdraw_amount_choice(callback: types.CallbackQuery):
+    user_id = callback.from_user.id
+    
+    # ✅ ИСПРАВЛЕНО: Синхронная функция обернута в asyncio.to_thread
+    user = await asyncio.to_thread(get_user, user_id)
+
+    # 🔹 Проверка подписки
+    data = await flyer_check_subscription(user_id, callback.message)
+    if not data.get("skip"):
+        kb = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="✅ Я подписался", callback_data="fp_check")]
+            ]
+        )
+        await callback.message.answer(
+            data.get("info", "Для продолжения подпишитесь на обязательные каналы. 👆"),
+            reply_markup=kb
+        )
+        await callback.answer()
+        return
+    
+
+        # --- 2. ПРОВЕРКА SUBGRAM ---
+    data_subgram = await subgram_check_wrapper(user=callback.from_user, message=callback.message, action="subscribe")
+    if not data_subgram.get("skip"):
+        # Если subgram_check_wrapper возвращает False, он обычно сам обрабатывает ответ
+        return
+
+    if not user:
+        await callback.message.answer("⚠️ Вы не зарегистрированы. Введите /start")
+        await callback.answer()
+        return
+
+    try:
+        amount = float(callback.data.split("_")[-1])
+    except:
+        await callback.answer("Неверная сумма.")
+        return
+
+    current_stars = float(user['stars'])
+    if amount > current_stars:
+        await callback.answer(f"У вас недостаточно ⭐️. На балансе: {current_stars}", show_alert=True)
+        return
+
+    # создаём заявку
+    # ✅ ИСПРАВЛЕНО: Синхронная функция обернута в asyncio.to_thread
+    req_id = await asyncio.to_thread(create_withdraw_request, user_id, amount)
+    
+    # ✅ ИСПРАВЛЕНО: Синхронная функция обернута в asyncio.to_thread
+    await asyncio.to_thread(update_stars, user_id, -amount)
+    
+    await callback.message.answer(f"✅ Заявка #{req_id} на вывод {amount} ⭐️ создана и ожидает рассмотрения в течении 24-х часов")
+    await callback.answer()
+    
+
 # Inline клавиатура для заданий
 def task_kb(task_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
@@ -1767,147 +1909,6 @@ async def VIP_POD(callback: types.CallbackQuery):
 
 # Предполагаем, что WITHDRAW_OPTIONS определен где-то выше, например:
 # WITHDRAW_OPTIONS = [50, 75, 100, 200] 
-
-@router.callback_query(F.data == "withdraw")
-async def withdraw_callback(callback: types.CallbackQuery):
-    user_id = callback.from_user.id
-    
-    # --- НАЧАЛО НОВОЙ ЛОГИКИ ПРОВЕРКИ РЕФЕРАЛОВ ---
-    REQUIRED_REFERRALS = 2
-    
-    # ✅ ИСПРАВЛЕНО: Синхронная функция обернута в asyncio.to_thread
-    verified_referrals_count = await asyncio.to_thread(get_verified_referrals_count, user_id)
-
-    if verified_referrals_count < REQUIRED_REFERRALS:
-        # Условие не выполнено. Блокируем вывод.
-        missing_count = REQUIRED_REFERRALS - verified_referrals_count
-        
-        # Формируем сообщение о блокировке
-        text = (
-            f"<b>❌ Вывод недоступен!</b>\n\n"
-            f"Для открытия функции вывода средств вам необходимо пригласить <b>{REQUIRED_REFERRALS} друзей</b>, "
-            f"которые пройдут <u>полную верификацию</u> (отправка номера телефона и проверка подписки спонсоров).\n\n"
-            f"Канал с выводами - [https://t.me/FreeStarsXQPay]\n"
-            f"✅ Верифицированных рефералов: <b>{verified_referrals_count}/{REQUIRED_REFERRALS}</b>\n"
-            f"Осталось пригласить: <b>{missing_count}</b>"
-        )
-        
-        # Клавиатура с ссылкой на реферальную информацию
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📊 Реферальная сcылка 📊", callback_data="ref_link")],
-            [InlineKeyboardButton(text="⬅️ В Профиль", callback_data="profile")]
-        ])
-
-        # Пытаемся отредактировать сообщение (если это Профиль), иначе отправляем новое
-        try:
-            await callback.message.edit_caption(
-                caption=text,
-                parse_mode="HTML",
-                reply_markup=keyboard
-            )
-        except Exception:
-            await callback.message.answer(
-                text=text,
-                parse_mode="HTML",
-                reply_markup=keyboard
-            )
-        
-        await callback.answer(f"❌ Нужно еще {missing_count} верифицированных рефералов.", show_alert=True)
-        return
-    # --- КОНЕЦ НОВОЙ ЛОГИКИ ПРОВЕРКИ РЕФЕРАЛОВ ---
-
-    # --- СТАРТ СУЩЕСТВУЮЩЕЙ ЛОГИКИ ВЫВОДА (если условие выполнено) ---
-    # ✅ ИСПРАВЛЕНО: Синхронная функция обернута в asyncio.to_thread
-    user = await asyncio.to_thread(get_user, user_id) 
-    stars = user.get("stars", 0)
-    
-    withdraw_text = (
-        f"💰 Ваш баланс: <b>{stars:.2f} ⭐</b>\n"
-        f"Выберите сумму для вывода:"
-    )
-    
-    from aiogram.utils.keyboard import InlineKeyboardBuilder
-    # NOTE: Используем предполагаемые опции для создания кнопок
-    WITHDRAW_OPTIONS = [50, 75, 100, 200] 
-    
-    withdraw_kb = InlineKeyboardBuilder()
-    for amount in WITHDRAW_OPTIONS:
-        withdraw_kb.button(text=f"{amount} ⭐", callback_data=f"withdraw_amount_{amount}")
-        
-    withdraw_kb.adjust(2)
-    withdraw_kb.row(InlineKeyboardButton(text="⬅️ В Профиль", callback_data="profile"))
-
-    try:
-        await callback.message.edit_caption(
-            caption=withdraw_text,
-            parse_mode="HTML",
-            reply_markup=withdraw_kb.as_markup()
-        )
-    except Exception:
-        await callback.message.answer(
-            text=withdraw_text,
-            parse_mode="HTML",
-            reply_markup=withdraw_kb.as_markup()
-        )
-    
-    await callback.answer()
-
-
-# Выбор суммы для вывода
-@router.callback_query(F.data.startswith("withdraw_amount_"))
-async def withdraw_amount_choice(callback: types.CallbackQuery):
-    user_id = callback.from_user.id
-    
-    # ✅ ИСПРАВЛЕНО: Синхронная функция обернута в asyncio.to_thread
-    user = await asyncio.to_thread(get_user, user_id)
-
-    # 🔹 Проверка подписки
-    data = await flyer_check_subscription(user_id, callback.message)
-    if not data.get("skip"):
-        kb = InlineKeyboardMarkup(
-            inline_keyboard=[
-                [InlineKeyboardButton(text="✅ Я подписался", callback_data="fp_check")]
-            ]
-        )
-        await callback.message.answer(
-            data.get("info", "Для продолжения подпишитесь на обязательные каналы. 👆"),
-            reply_markup=kb
-        )
-        await callback.answer()
-        return
-    
-
-        # --- 2. ПРОВЕРКА SUBGRAM ---
-    data_subgram = await subgram_check_wrapper(user=callback.from_user, message=callback.message, action="subscribe")
-    if not data_subgram.get("skip"):
-        # Если subgram_check_wrapper возвращает False, он обычно сам обрабатывает ответ
-        return
-
-    if not user:
-        await callback.message.answer("⚠️ Вы не зарегистрированы. Введите /start")
-        await callback.answer()
-        return
-
-    try:
-        amount = float(callback.data.split("_")[-1])
-    except:
-        await callback.answer("Неверная сумма.")
-        return
-
-    current_stars = float(user['stars'])
-    if amount > current_stars:
-        await callback.answer(f"У вас недостаточно ⭐️. На балансе: {current_stars}", show_alert=True)
-        return
-
-    # создаём заявку
-    # ✅ ИСПРАВЛЕНО: Синхронная функция обернута в asyncio.to_thread
-    req_id = await asyncio.to_thread(create_withdraw_request, user_id, amount)
-    
-    # ✅ ИСПРАВЛЕНО: Синхронная функция обернута в asyncio.to_thread
-    await asyncio.to_thread(update_stars, user_id, -amount)
-    
-    await callback.message.answer(f"✅ Заявка #{req_id} на вывод {amount} ⭐️ создана и ожидает рассмотрения в течении 24-х часов")
-    await callback.answer()
 
 # ---------- Обработка сообщений для админ-пароля и рассылки ----------
 @router.message(lambda m: m.text and m.from_user.id not in admin_task_limit_editing)
