@@ -46,7 +46,7 @@ import aiohttp
 import logging
 
 
-FLYER_API_KEY = "FL-HHSeYE-ZietNc-vGQtzG-ELIHwH"
+FLYER_API_KEY = "FL-elIDwf-wTDlrP-ritjwp-mbxRqG"
 GROUP_ID_TO_FORWARD = -1002961569525
 WITHDRAW_ID_TO_FORWARD = -1002557284206
 SUBGRAM_API_KEY = "26d67e0a9c31631bbe7343c415df2d60d47472668ceda4a29c934907314d592b" 
@@ -93,7 +93,7 @@ def get_profile_kb(user_id: int):
 
         # Поддержка и Выводы в одной строке
         [
-            InlineKeyboardButton(text="Поддержка", url="https://t.me/deluxesl"),
+            InlineKeyboardButton(text="Поддержка", url="https://t.me/surnamesks"),
             InlineKeyboardButton(text="Выводы", url="https://t.me/FreeStarsXQPay")
         ],
 
@@ -232,6 +232,10 @@ def create_contact_keyboard() -> ReplyKeyboardMarkup:
         one_time_keyboard=True
     )
 
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, FSInputFile
+from aiogram.filters import CommandStart
+# ... (Предполагаемые импорты, включая database, keyboards и flyer_check_subscription)
+
 @router.message(CommandStart())
 async def cmd_start(message: types.Message):
     user = message.from_user
@@ -240,19 +244,28 @@ async def cmd_start(message: types.Message):
     full_name = f"{user.first_name or ''} {user.last_name or ''}".strip()
 
     user_db = get_user(user_id)
+    
+    # --- ВАЖНОЕ ИЗМЕНЕНИЕ: Логика проверки верификации ---
+    is_fully_registered = False
+    if user_db:
+        # Проверяем флаг 'is_verified' (предполагаем, что 1 = True)
+        is_verified = user_db.get("is_verified")
+        
+        if is_verified == 1:
+             is_fully_registered = True
+    # -----------------------------------------------------
 
     if user_db:
-        phone = user_db.get("phone")
+        # 1. Если пользователь УЖЕ в базе (существующий)
+        if is_fully_registered:
 
-        # 1. Проверка: Пользователь полностью зарегистрирован?
-        if phone and any(normalize_phone(phone).startswith(code) for code in ALLOWED_COUNTRY_CODES):
-
-            # 2. Если да, проверяем подписку и выводим меню/требование подписки
+            # 2. Пользователь полностью зарегистрирован и верифицирован.
+            # Проверяем подписку и выводим меню/требование подписки.
             data = await flyer_check_subscription(user_id, message)
 
             if data.get("skip"):
                 # ... Вывод ГЛАВНОГО МЕНЮ ...
-                photo = FSInputFile("profile.png")  # файл в корне проекта
+                photo = FSInputFile("profile.png") 
                 msg = (
                     f"📋👥 <i>Зарабатывай звёзды, выполняя задания и приглашая друзей!</i>\n\n"
                     f"<blockquote>Честная игра = честные награды 💎\n⛔️ Выплачиваем только честным пользователям!</blockquote>"
@@ -262,7 +275,7 @@ async def cmd_start(message: types.Message):
                     photo=photo,
                     caption=msg,
                     parse_mode="HTML",
-                    reply_markup=main_menu_kb
+                    reply_markup=main_menu_kb # Главное меню
                 )
             else:
                 # ... Вывод ТРЕБОВАНИЯ ПОДПИСКИ ...
@@ -277,26 +290,30 @@ async def cmd_start(message: types.Message):
                 )
 
         else:
-            # 3. Если нет, но пользователь в базе есть (не завершил регистрацию),
-            # просим отправить контакт повторно.
+            # 3. Пользователь в базе есть, но НЕ верифицирован (нужно завершить регистрацию).
             msg = (
             "Пройдите проверку на бота\n\n"
             "<blockquote>📌 Номер используется только для проверки вашего региона и не сохраняется в нашей базе.\n"
             "Нажимая кнопку ниже, вы подтверждаете своё согласие на одноразовое предоставления номера для проверки своего региона(только СНГ).</blockquote>"
             )
             await message.answer(
-                text=msg, # Передаем одну объединенную строку
-                parse_mode="HTML", # Обязательно указываем HTML
-                reply_markup=create_contact_keyboard() # Предполагаем, что это клавиатура для контакта
+                text=msg, 
+                parse_mode="HTML", 
+                reply_markup=create_contact_keyboard() # Просим контакт
             )
 
         return
 
 
-    # Новый пользователь
+    # --------------------------------------------------------------------------
+    # --- БЛОК НОВОГО ПОЛЬЗОВАТЕЛЯ ---
+    # --------------------------------------------------------------------------
+    
+    # Новый пользователь (user_db не существует)
     args = message.text.split()
     referrer_id = int(args[1]) if len(args) > 1 and args[1].isdigit() else None
 
+    # Добавляем нового пользователя (is_verified будет 0 по умолчанию)
     add_user(user_id, username, referrer_id, full_name)
 
     msg = (
@@ -307,9 +324,9 @@ async def cmd_start(message: types.Message):
     
     # Отправляем сообщение
     await message.answer(
-        text=msg, # Передаем одну объединенную строку
-        parse_mode="HTML", # Обязательно указываем HTML
-        reply_markup=create_contact_keyboard()
+        text=msg, 
+        parse_mode="HTML", 
+        reply_markup=create_contact_keyboard() # Просим контакт
     )
 
 async def flyer_check_subscription(user_id: int, message: types.Message):
@@ -2964,7 +2981,7 @@ async def tasks_cb(callback: types.CallbackQuery):
         if not kb_buttons:
             kb_empty = InlineKeyboardMarkup(
                 inline_keyboard=[
-                    [InlineKeyboardButton(text="Добавить свое задание", url="t.me/deluxesl")],
+                    [InlineKeyboardButton(text="Добавить свое задание", url="t.me/surnamesks")],
                     [InlineKeyboardButton(text="🛠 Ручные задания", callback_data="manual_tasks_list")],
                     [InlineKeyboardButton(text="⬅️", callback_data="back_to_menu")]
                 ]
@@ -2980,7 +2997,7 @@ async def tasks_cb(callback: types.CallbackQuery):
 
             # ===== Дополнительные кнопки =====
         kb_buttons.append([InlineKeyboardButton(text="🛠 Ручные задания", callback_data="manual_tasks_list")])
-        kb_buttons.append([InlineKeyboardButton(text="Добавить свое задание", url="t.me/deluxesl")])
+        kb_buttons.append([InlineKeyboardButton(text="Добавить свое задание", url="t.me/surnamesks")])
         kb_buttons.append([InlineKeyboardButton(text="Проверить подписки", callback_data="check_all_tasks")])
         kb_buttons.append([InlineKeyboardButton(text="⬅️", callback_data="back_to_menu")])
 
@@ -3475,7 +3492,7 @@ async def manual_tasks_list_cb(callback: types.CallbackQuery):
         caption = "🛠 **Ручных заданий нет.** Все выполнены или лимиты исчерпаны."
         kb_empty = InlineKeyboardMarkup(
             inline_keyboard=[
-                [InlineKeyboardButton(text="Добавить свое задание", url="t.me/deluxesl")],
+                [InlineKeyboardButton(text="Добавить свое задание", url="t.me/surnamesks")],
                 [InlineKeyboardButton(text="⬅️ В меню", callback_data="back_to_menu")]
             ]
         )
@@ -4330,4 +4347,3 @@ async def daily_promo_task(bot: Bot):
                 # Игнорируем ошибки (например, если пользователь заблокировал бота)
                 continue
         print("Промо-рассылка завершена.")
-
