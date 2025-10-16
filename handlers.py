@@ -825,6 +825,7 @@ async def stat_referrals_today_cb(callback: types.CallbackQuery):
     
     top_users = []
     all_ranks = {}
+    final_text = "" # <-- Добавлено для инициализации, хотя и необязательно
     
     # --- БЛОК 1: ПОЛУЧЕНИЕ ДАННЫХ ИЗ БАЗЫ ДАННЫХ ---
     try:
@@ -846,7 +847,7 @@ async def stat_referrals_today_cb(callback: types.CallbackQuery):
     lines = [f"<b>{title}</b>\n"]
     medals = ["🥇", "🥈", "🥉", "4.", "5."]
     
-    # Заглушка, если нет пользователей вообще (переопределяет lines)
+    # Заглушка, если нет пользователей вообще (переопределяет final_text)
     if not top_users:
         final_text = f"<b>{title}</b>\n\nСегодня еще никто не приглашал друзей. Станьте первым!"
     else:
@@ -864,8 +865,7 @@ async def stat_referrals_today_cb(callback: types.CallbackQuery):
                 
         text = "\n".join(lines)
 
-        # --- ИСПРАВЛЕНИЕ НАЧАЛОСЬ ЗДЕСЬ ---
-        # Использование только HTML-тегов для объединения с основным текстом
+        # --- Блок с наградами ---
         weekly_reward_html = (
             "\n\n<blockquote><b>Награды для Топ-5 Победителей еженедельного топа:</b>\n"
             "1 место: 30 ⭐️\n"
@@ -873,20 +873,23 @@ async def stat_referrals_today_cb(callback: types.CallbackQuery):
             "3 место: 10 ⭐️\n"
             "4 место: 8 ⭐️\n"
             "5 место: 5 ⭐️"
-            "</blockquote>" # <--- ОБЯЗАТЕЛЬНО ЗАКРЫВАЕМ
+            "</blockquote>"
         )
         
-        final_text = text + weekly_reward_html
+        # final_text теперь содержит ТОП + Награды
+        final_text = text + weekly_reward_html 
 
     # Добавляем персональную информацию о месте пользователя
     my_rank_data = all_ranks.get(user_id)
     if my_rank_data:
-        text += f"\n\nВаше место в топе: <b>{my_rank_data['rank']}</b> ({my_rank_data['count']} приглашенных)"
+        # ИСПРАВЛЕНИЕ: Добавляем к final_text, а не к text
+        final_text += f"\n\nВаше место в топе: <b>{my_rank_data['rank']}</b> ({my_rank_data['count']} приглашенных)"
 
-    # --- БЛОК 3: РЕДАКТИРОВАНИЕ/ОТПРАВКА СООБЩЕНИЯ (остается прежним) ---
+    # --- БЛОК 3: РЕДАКТИРОВАНИЕ/ОТПРАВКА СООБЩЕНИЯ ---
     try:
+        # ИСПРАВЛЕНИЕ: Используем final_text
         await callback.message.edit_caption(
-            caption=text,
+            caption=final_text, 
             parse_mode="HTML",
             reply_markup=statistics_back_kb
         )
@@ -895,24 +898,28 @@ async def stat_referrals_today_cb(callback: types.CallbackQuery):
             pass 
         else:
             try:
+                # ИСПРАВЛЕНИЕ: Используем final_text
                 await callback.message.edit_text(
-                    text=text,
+                    text=final_text,
                     parse_mode="HTML",
                     reply_markup=statistics_back_kb
                 )
             except TelegramBadRequest:
+                # ИСПРАВЛЕНИЕ: Используем final_text
                 await callback.message.answer(
-                    text,
+                    final_text,
                     parse_mode="HTML",
                     reply_markup=statistics_back_kb
                 )
             except Exception as inner_e:
                 print(f"[FINAL ERROR IN EDIT_TEXT] {inner_e}")
-                await callback.message.answer(text, parse_mode="HTML", reply_markup=statistics_back_kb)
+                # ИСПРАВЛЕНИЕ: Используем final_text
+                await callback.message.answer(final_text, parse_mode="HTML", reply_markup=statistics_back_kb)
 
     except Exception as final_e:
         print(f"[FINAL CATCH ERROR] Непредвиденная ошибка в блоке edit/answer: {final_e}")
-        await callback.message.answer(text, parse_mode="HTML", reply_markup=statistics_back_kb)
+        # ИСПРАВЛЕНИЕ: Используем final_text
+        await callback.message.answer(final_text, parse_mode="HTML", reply_markup=statistics_back_kb)
         
     await callback.answer()
 
