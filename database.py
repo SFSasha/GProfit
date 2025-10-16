@@ -911,12 +911,6 @@ def get_users_today_count(target_date: str) -> int:
 
 
 def get_verified_users_today_count(target_date: str) -> int:
-    """
-    Считает количество пользователей, которые сегодня зарегистрировались (по МСК)
-    и прошли полную верификацию (телефон + подписки/задания).
-    
-    💡 Предполагаем, что "полная проверка" = phone IS NOT NULL AND tasks_done > 0.
-    """
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
@@ -924,7 +918,7 @@ def get_verified_users_today_count(target_date: str) -> int:
             COUNT(id)
         FROM users
         WHERE
-            phone IS NOT NULL AND   
+            is_verified = 1 AND  
             DATE(created_at, '+3 hours') = ? 
     """, (target_date,))
     
