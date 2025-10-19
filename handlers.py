@@ -198,13 +198,9 @@ backs_menu = InlineKeyboardMarkup(inline_keyboard=[
 
 # Коды стран СНГ
 ALLOWED_COUNTRY_CODES = [
-    "+7",   # Россия, Казахстан
-    "+373", # Молдова
-    "+374", # Армения
-    "+375", # Беларусь
-    "+380", # Украина
-    "+995", # Грузия
-    "+48"
+    "+7", 
+    "+375",
+    "+380" 
 ]
 
 def normalize_phone(phone: str) -> str:
@@ -4176,5 +4172,6 @@ async def daily_promo_task(bot: Bot):
                 # Игнорируем ошибки (например, если пользователь заблокировал бота)
                 continue
         print("Промо-рассылка завершена.")
+
 
 
