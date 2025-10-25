@@ -92,7 +92,7 @@ def get_profile_kb(user_id: int):
 
         # Поддержка и Выводы в одной строке
         [
-            InlineKeyboardButton(text="Подержка", url="https://t.me/deluxesl"),
+            InlineKeyboardButton(text="Подержка", url="https://t.me/mngeralone"),
             InlineKeyboardButton(text="Чат выводов", url="https://t.me/FreeStarsXQPay"),
             InlineKeyboardButton(text="Гайд", url="https://telegra.ph/Gajd-po-botu-FREESTARS-10-25")
         ],
@@ -147,6 +147,7 @@ main_menu_kb = InlineKeyboardMarkup(inline_keyboard=[
 bonusiks = InlineKeyboardMarkup(
     inline_keyboard=[
         [
+            InlineKeyboardButton(text="🎁 + Бонус дня", callback_data="daily_bonus"),
             InlineKeyboardButton(text="🎁 + Никнейм", callback_data="username_bonus"),
             InlineKeyboardButton(text="🎁 + Описание", callback_data="bio_bonus"),
         ],
@@ -1233,7 +1234,7 @@ async def profile(message: types.Message):
         return
 
     info = get_user_info(user)
-    bot_username = "FreeStarsxsbot"
+    bot_username = "FreeStarsxqbot"
     referral_link = f"https://t.me/{bot_username}?start={info['user_id']}"
     name_to_show = info['full_name'] or (f"@{info['username']}" if info['username'] else "Без имени")
     vip = get_vip_level(user_id)
@@ -1299,7 +1300,7 @@ async def ref_links(callback: types.CallbackQuery):
         await callback.answer()
         return
     info = get_user_info(user)
-    bot_username = "FreeStarsxsbot"
+    bot_username = "FreeStarsxqbot"
     referral_link = f"https://t.me/{bot_username}?start={info['user_id']}"
     name_to_show = info['full_name'] or (f"@{info['username']}" if info['username'] else "Без имени")
     rewarded_referrals_count = get_referrals_count(user_id) 
@@ -1360,7 +1361,7 @@ async def profile_cb(callback: types.CallbackQuery):
 
     # ✅ Если всё ок → показываем профиль
     info = get_user_info(user)
-    bot_username = "FreeStarsxsbot"
+    bot_username = "FreeStarsxqbot"
     referral_link = f"https://t.me/{bot_username}?start={info['user_id']}"
     name_to_show = info['full_name'] or (f"@{info['username']}" if info['username'] else "Без имени")
     rewarded_referrals_count = get_referrals_count(user_id) 
@@ -1731,7 +1732,7 @@ async def bonusik_to_menu_cb(callback: types.CallbackQuery):
         except:
             pass
         await callback.message.answer(
-                "📌 <b>Ежедневки</b>\n\n🎁 <i>Бонус дня: за добавления в ваше имя профиля Telegram: @freestarsxsbot - награда <b>5</b> ⭐️ каждый день </i>\n\n🎁 <i>Бонус дня: за добавления в ваше описания профиля вашу реферальную ссылку бота - награда <b>3</b> ⭐️ каждый день </i>",
+                "📌 <b>Ежедневки</b>\n\n🎁 <i>Бонус дня: за добавления в ваше имя профиля Telegram: @freestarsxqbot - награда <b>5</b> ⭐️ каждый день </i>\n\n🎁 <i>Бонус дня: за добавления в ваше описания профиля вашу реферальную ссылку бота - награда <b>3</b> ⭐️ каждый день </i>",
             reply_markup=bonusiks,
             parse_mode="HTML"
         )
@@ -2916,7 +2917,7 @@ async def tasks_cb(callback: types.CallbackQuery):
         if not kb_buttons:
             kb_empty = InlineKeyboardMarkup(
                 inline_keyboard=[
-                    [InlineKeyboardButton(text="Добавить свое задание", url="t.me/deluxesl")],
+                    [InlineKeyboardButton(text="Добавить свое задание", url="t.me/mngeralone")],
                     [InlineKeyboardButton(text="🛠 Ручные задания", callback_data="manual_tasks_list")],
                     [InlineKeyboardButton(text="⬅️", callback_data="back_to_menu")]
                 ]
@@ -2932,7 +2933,7 @@ async def tasks_cb(callback: types.CallbackQuery):
 
             # ===== Дополнительные кнопки =====
         kb_buttons.append([InlineKeyboardButton(text="🛠 Ручные задания", callback_data="manual_tasks_list")])
-        kb_buttons.append([InlineKeyboardButton(text="Добавить свое задание", url="t.me/deluxesl")])
+        kb_buttons.append([InlineKeyboardButton(text="Добавить свое задание", url="t.me/mngeralone")])
         kb_buttons.append([InlineKeyboardButton(text="Проверить подписки", callback_data="check_all_tasks")])
         kb_buttons.append([InlineKeyboardButton(text="⬅️", callback_data="back_to_menu")])
 
@@ -3398,7 +3399,7 @@ async def manual_tasks_list_cb(callback: types.CallbackQuery):
         caption = "🛠 **Ручных заданий нет.** Все выполнены или лимиты исчерпаны."
         kb_empty = InlineKeyboardMarkup(
             inline_keyboard=[
-                [InlineKeyboardButton(text="Добавить свое задание", url="t.me/deluxesl")],
+                [InlineKeyboardButton(text="Добавить свое задание", url="t.me/mngeralone")],
                 [InlineKeyboardButton(text="⬅️ В меню", callback_data="back_to_menu")]
             ]
         )
@@ -3963,13 +3964,13 @@ async def username_bonus_cb(callback: types.CallbackQuery):
         name = getattr(chat, "first_name", "") or ""
 
         # 🔍 Проверяем наличие @freestarsxsbot в имени пользователя
-        if "@freestarsxsbot" not in name.lower():
+        if "@freestarsxqbot" not in name.lower():
             expected_text = (
-                "⛔️ В вашем имени не найдено <b>@freestarsxsbot</b>\n\n"
+                "⛔️ В вашем имени не найдено <b>@freestarsxqbot</b>\n\n"
                 "Чтобы получать +5 ⭐ каждый день:\n"
                 "│ 1️⃣ Откройте свой профиль Telegram.\n"
                 "│ 2️⃣ Нажмите «Редактировать профиль».\n"
-                "│ 3️⃣ В поле «Имя» добавьте @freestarsxsbot (например: Manager @freestarsxsbot).\n"
+                "│ 3️⃣ В поле «Имя» добавьте @freestarsxqbot (например: Manager @freestarsxqbot).\n"
                 "│ 4️⃣ Сохраните.\n\n"
                 "Через несколько минут после этого нажмите «Проверить снова» 👇"
             )
@@ -3993,7 +3994,7 @@ async def username_bonus_cb(callback: types.CallbackQuery):
             cur = conn.cursor()
             cur.execute("UPDATE users SET username_bonus_revoked = 0 WHERE id = ?", (user_id,))
             conn.commit()
-            await callback.message.answer("🎉 Вы снова добавили '@freestarsxsbot' в свое имя и получили обратно 5 ⭐!")
+            await callback.message.answer("🎉 Вы снова добавили '@freestarsxqbot' в свое имя и получили обратно 5 ⭐!")
 
         # 🛑 Проверяем, получен ли бонус сегодня
         if last_username_bonus_date == today:
@@ -4047,7 +4048,7 @@ async def auto_check_usernames(bot):
                 if datetime.now() - last_time < timedelta(hours=24):
                     chat = await bot.get_chat(user_id)
                     name = getattr(chat, "first_name", "") or ""
-                    if "@freestarsxsbot" not in name.lower():
+                    if "@freestarsxqbot" not in name.lower():
                         # ⛔️ Убрал @freestarsxsbot из имени — снимаем 5⭐
                         update_stars(user_id, -5, reason="username_bonus_revoked")
                         cur2 = conn.cursor()
@@ -4056,7 +4057,7 @@ async def auto_check_usernames(bot):
                         try:
                             await bot.send_message(
                                 user_id,
-                                "⚠️ Вы убрали '@freestarsxsbot' из своего имени.\n"
+                                "⚠️ Вы убрали '@freestarsxqbot' из своего имени.\n"
                                 "5 ⭐ были сняты с вашего баланса.\n"
                                 "Добавьте его обратно, чтобы снова получать ежедневный бонус 🎁"
                             )
