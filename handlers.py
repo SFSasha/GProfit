@@ -94,7 +94,7 @@ def get_profile_kb(user_id: int):
         [
             InlineKeyboardButton(text="Подержка", url="https://t.me/deluxesl"),
             InlineKeyboardButton(text="Чат выводов", url="https://t.me/FreeStarsXQPay"),
-            InlineKeyboardButton(text="Гайд", callback_url="https://telegra.ph/Gajd-po-botu-FREESTARS-10-25")
+            InlineKeyboardButton(text="Гайд", url="https://telegra.ph/Gajd-po-botu-FREESTARS-10-25")
         ],
 
         # Длинная кнопка на всю ширину
