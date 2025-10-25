@@ -1409,42 +1409,6 @@ def get_time_until_next_bonus():
     minutes, _ = divmod(remainder, 60)
     return f"{hours} ч {minutes} мин"
 
-@router.message(F.text == "🎁 Бонус дня")
-async def bonus_day(message: types.Message):
-    user = get_user(message.from_user.id)
-    user_id = message.from_user.id
-    # 🔹 Проверка подписки
-    data = await flyer_check_subscription(user_id, message)
-    if not data.get("skip"):
-        kb = InlineKeyboardMarkup(
-            inline_keyboard=[
-                [InlineKeyboardButton(text="✅ Я подписался", callback_data="fp_check")]
-            ]
-        )
-        await message.answer(
-            data.get("info", "Для продолжения подпишитесь на обязательные каналы. 👆"),
-            reply_markup=kb
-        )
-        return   
-
-    if not user:
-        await message.answer("⚠️ Вы не зарегистрированы. Введите /start")
-        return
-
-    info = get_user_info(user)
-    today = datetime.now().date().isoformat()
-    if info['last_bonus_date'] == today:
-        left = get_time_until_next_bonus()
-        await message.answer(
-            f"❗️ Бонус уже получен сегодня.\n⌛ До следующего бонуса: {left}",
-            reply_markup=backs_menu
-        )
-        return
-
-    update_bonus_date(info['user_id'], today)
-    update_stars(info['user_id'], 0.6, reason="daily_bonus")
-    await message.answer("🎉 Вы получили бонус дня +0.6 ⭐️", reply_markup=backs_menu)
-
 
 @router.callback_query(F.data == "daily_bonus")
 async def daily_bonus_cb(callback: types.CallbackQuery):
@@ -1482,8 +1446,8 @@ async def daily_bonus_cb(callback: types.CallbackQuery):
         return
 
     update_bonus_date(info['user_id'], today)
-    update_stars(info['user_id'], 0.6, reason="daily_bonus")
-    await callback.message.edit_text("🎉 Вы получили бонус дня +0.6 ⭐️", reply_markup=backs_menu)
+    update_stars(info['user_id'], 1, reason="daily_bonus")
+    await callback.message.edit_text("🎉 Вы получили бонус дня +1 ⭐️", reply_markup=backs_menu)
     await callback.answer()
 
 
