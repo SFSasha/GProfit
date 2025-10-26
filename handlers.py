@@ -67,7 +67,7 @@ ADMIN_PASSWORD = "FREEPASSWORDx1"
 ADMIN_ID = [1500618394,  7829782603]
 admin_auth_waiting = set()   # user_id которые ввели запрос на ввод пароля и ожидают ввести пароль
 admin_sessions = set()       # user_id которые успешно вошли в админ панель
-REQUIRED_CHANNELS = ["@FreeStarsXQ"]
+REQUIRED_CHANNELS = ["@freestarscm"]
 WITHDRAW_OPTIONS = [50, 75, 100, 200]
 admin_adding_channel = {}  # временное состояние добавления канала
 
@@ -660,7 +660,7 @@ async def daily_reward_task(bot: Bot):
                 print(f"Не удалось отправить сообщение в группу {GROUP_ID_TO_FORWARD}. Ошибка: {e}")
 
 # handlers.py
-BOT_USERNAME = "FreeStarsxqbot"  # если у тебя другое имя — замени
+BOT_USERNAME = "FreeStarsxrbot"  # если у тебя другое имя — замени
 
 async def user_has_referral_in_bio(user_id: int, bot) -> bool:
     try:
@@ -1192,7 +1192,7 @@ async def profile(message: types.Message):
         return
 
     info = get_user_info(user)
-    bot_username = "FreeStarsxqbot"
+    bot_username = "FreeStarsxrbot"
     referral_link = f"https://t.me/{bot_username}?start={info['user_id']}"
     name_to_show = info['full_name'] or (f"@{info['username']}" if info['username'] else "Без имени")
     vip = get_vip_level(user_id)
@@ -1257,7 +1257,7 @@ async def ref_links(callback: types.CallbackQuery):
         await callback.answer()
         return
     info = get_user_info(user)
-    bot_username = "FreeStarsxqbot"
+    bot_username = "FreeStarsxrbot"
     referral_link = f"https://t.me/{bot_username}?start={info['user_id']}"
     name_to_show = info['full_name'] or (f"@{info['username']}" if info['username'] else "Без имени")
     rewarded_referrals_count = get_referrals_count(user_id) 
@@ -1318,7 +1318,7 @@ async def profile_cb(callback: types.CallbackQuery):
 
     # ✅ Если всё ок → показываем профиль
     info = get_user_info(user)
-    bot_username = "FreeStarsxqbot"
+    bot_username = "FreeStarsxrbot"
     referral_link = f"https://t.me/{bot_username}?start={info['user_id']}"
     name_to_show = info['full_name'] or (f"@{info['username']}" if info['username'] else "Без имени")
     rewarded_referrals_count = get_referrals_count(user_id) 
@@ -1652,7 +1652,7 @@ async def bonusik_to_menu_cb(callback: types.CallbackQuery):
         except:
             pass
         await callback.message.answer(
-                "📌 <b>Ежедневки</b>\n\n🎁 <i>Бонус дня: за добавления в ваше имя профиля Telegram: @freestarsxqbot - награда <b>5</b> ⭐️ каждый день </i>\n\n🎁 <i>Бонус дня: за добавления в ваше описания профиля вашу реферальную ссылку бота - награда <b>3</b> ⭐️ каждый день </i>",
+                "📌 <b>Ежедневки</b>\n\n🎁 <i>Бонус дня: за добавления в ваше имя профиля Telegram: @freestarsxrbot - награда <b>5</b> ⭐️ каждый день </i>\n\n🎁 <i>Бонус дня: за добавления в ваше описания профиля вашу реферальную ссылку бота - награда <b>3</b> ⭐️ каждый день </i>",
             reply_markup=bonusiks,
             parse_mode="HTML"
         )
@@ -3884,13 +3884,13 @@ async def username_bonus_cb(callback: types.CallbackQuery):
         name = getattr(chat, "first_name", "") or ""
 
         # 🔍 Проверяем наличие @freestarsxsbot в имени пользователя
-        if "@freestarsxqbot" not in name.lower():
+        if "@freestarsxrbot" not in name.lower():
             expected_text = (
-                "⛔️ В вашем имени не найдено <b>@freestarsxqbot</b>\n\n"
+                "⛔️ В вашем имени не найдено <b>@freestarsxrbot</b>\n\n"
                 "Чтобы получать +5 ⭐ каждый день:\n"
                 "│ 1️⃣ Откройте свой профиль Telegram.\n"
                 "│ 2️⃣ Нажмите «Редактировать профиль».\n"
-                "│ 3️⃣ В поле «Имя» добавьте @freestarsxqbot (например: Manager @freestarsxqbot).\n"
+                "│ 3️⃣ В поле «Имя» добавьте @freestarsxrbot (например: Manager @freestarsxrbot).\n"
                 "│ 4️⃣ Сохраните.\n\n"
                 "Через несколько минут после этого нажмите «Проверить снова» 👇"
             )
@@ -3914,7 +3914,7 @@ async def username_bonus_cb(callback: types.CallbackQuery):
             cur = conn.cursor()
             cur.execute("UPDATE users SET username_bonus_revoked = 0 WHERE id = ?", (user_id,))
             conn.commit()
-            await callback.message.answer("🎉 Вы снова добавили '@freestarsxqbot' в свое имя и получили обратно 5 ⭐!")
+            await callback.message.answer("🎉 Вы снова добавили '@freestarsxrbot' в свое имя и получили обратно 5 ⭐!")
 
         # 🛑 Проверяем, получен ли бонус сегодня
         if last_username_bonus_date == today:
@@ -3968,7 +3968,7 @@ async def auto_check_usernames(bot):
                 if datetime.now() - last_time < timedelta(hours=24):
                     chat = await bot.get_chat(user_id)
                     name = getattr(chat, "first_name", "") or ""
-                    if "@freestarsxqbot" not in name.lower():
+                    if "@freestarsxrbot" not in name.lower():
                         # ⛔️ Убрал @freestarsxsbot из имени — снимаем 5⭐
                         update_stars(user_id, -5, reason="username_bonus_revoked")
                         cur2 = conn.cursor()
@@ -3977,7 +3977,7 @@ async def auto_check_usernames(bot):
                         try:
                             await bot.send_message(
                                 user_id,
-                                "⚠️ Вы убрали '@freestarsxqbot' из своего имени.\n"
+                                "⚠️ Вы убрали '@freestarsxrbot' из своего имени.\n"
                                 "5 ⭐ были сняты с вашего баланса.\n"
                                 "Добавьте его обратно, чтобы снова получать ежедневный бонус 🎁"
                             )
