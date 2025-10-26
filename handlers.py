@@ -1683,7 +1683,7 @@ async def withdraw_callback(callback: types.CallbackQuery):
             f"<b>❌ Вывод недоступен!</b>\n\n"
             f"Для открытия функции вывода средств вам необходимо пригласить <b>{REQUIRED_REFERRALS} друзей</b>, "
             f"которые пройдут <u>полную верификацию</u> (отправка номера телефона и проверка подписки спонсоров).\n\n"
-            f"Канал с выводами - [https://t.me/FreeStarsXQPay]\n"
+            f"Канал с выводами - [https://t.me/FreeStarsXPay]\n"
             f"✅ Верифицированных рефералов: <b>{verified_referrals_count}/{REQUIRED_REFERRALS}</b>\n"
             f"Осталось пригласить: <b>{missing_count}</b>"
         )
