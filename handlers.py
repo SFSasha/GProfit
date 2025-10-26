@@ -42,7 +42,7 @@ from database import get_top_clicker_users
 import json
 from database import set_referral_bonus_given, get_referrals_count
 from aiogram.types import FSInputFile
-FLYER_API_KEY = "FL-FGmfTH-XkeLIA-saTanu-siaBfs"
+FLYER_API_KEY = "FL-GIyeLI-IHBHxj-zmQCba-qTThIu"
 GROUP_ID_TO_FORWARD = -1002961569525
 WITHDRAW_ID_TO_FORWARD = -1002557284206
 
@@ -4025,3 +4025,4 @@ async def daily_promo_task(bot: Bot):
                 # Игнорируем ошибки (например, если пользователь заблокировал бота)
                 continue
         print("Промо-рассылка завершена.")
+
