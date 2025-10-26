@@ -1274,7 +1274,7 @@ async def ref_links(callback: types.CallbackQuery):
     )
 
     # ✅ Если подписка есть → показываем меню
-    photo = FSInputFile("referral.png")  # файл лежит в корне проекта
+    photo = FSInputFile("referral.jpg")  # файл лежит в корне проекта
     await callback.message.answer_photo(
         photo=photo,
         caption=msg,
@@ -1444,7 +1444,7 @@ async def statistics_menu(message: types.Message):
         total_stars = cur.fetchone()["total_stars"] or 0
         total_starx = total_stars + 3001
 
-    photo = FSInputFile("tops.png")  # заменишь на нужный файл
+    photo = FSInputFile("tops.jpg")  # заменишь на нужный файл
     msg = (
         f"📊 Выберите категорию статистики:\n\n"
         f"Баланс бота: 121100 ⭐️\n"
@@ -1482,7 +1482,7 @@ async def statistics_cb(callback: types.CallbackQuery):
         total_stars = cur.fetchone()["total_stars"] or 0
         total_starx = total_stars + 3001
 
-    photo = FSInputFile("tops.png")  # заменишь на нужный файл
+    photo = FSInputFile("tops.jpg")  # заменишь на нужный файл
     msg = (
         f"📊 Выберите категорию статистики:\n\n"
         f"Баланс бота: 121100 ⭐️\n"
@@ -1551,7 +1551,7 @@ async def statistics_type_cb(callback: types.CallbackQuery):
         text = f"<b>{title}</b>\n\n" + "\n".join(lines)
 
     # 🔹 Путь к картинке (фон статистики)
-    photo = FSInputFile("tops.png")
+    photo = FSInputFile("tops.jpg")
 
     # 🔹 Пробуем редактировать подпись, если сообщение — фото
     try:
@@ -2842,7 +2842,7 @@ async def tasks_cb(callback: types.CallbackQuery):
                     [InlineKeyboardButton(text="⬅️", callback_data="back_to_menu")]
                 ]
             )
-            photo = FSInputFile("tasks.png")  # локальный файл
+            photo = FSInputFile("tasks.jpg")  # локальный файл
             await callback.message.answer_photo(
                 photo=photo,
                 caption="🎯 Заданий пока нет.",
@@ -2859,7 +2859,7 @@ async def tasks_cb(callback: types.CallbackQuery):
 
         kb = InlineKeyboardMarkup(inline_keyboard=kb_buttons)
 
-        photo = FSInputFile("tasks.png")  # локальный файл
+        photo = FSInputFile("tasks.jpg")  # локальный файл
 # или photo = "https://example.com/tasks.png"  # URL
 
         await callback.message.answer_photo(
@@ -3281,7 +3281,7 @@ async def manual_tasks_list_cb(callback: types.CallbackQuery):
         # Логируем ошибку, если не удалось удалить (например, бот не админ или сообщение слишком старое)
         print(f"Не удалось удалить сообщение: {e}") 
     
-    photo = FSInputFile("tasks.png")  # локальный файл с фоном для ручных заданий
+    photo = FSInputFile("tasks.jpg")  # локальный файл с фоном для ручных заданий
 
     text_lines = ["🛠 **Ручные задания**\n"]
     kb_buttons = []
