@@ -14,9 +14,6 @@ logging.basicConfig(level=logging.INFO,
 
 # Получаем логгер для handlers
 log = logging.getLogger(__name__)
-
-# ID администратора, который может запрашивать базу
-ADMIN_ID = 1500618394  # <-- замени на свой Telegram ID
 DB_PATH = os.getenv("DB_PATH", "/data/bot.db")  # путь к базе на Railway
 
 async def main():
@@ -37,3 +34,4 @@ async def main():
 if __name__ == "__main__":
     conn = get_conn()  # get_conn уже вызывает init_db внутри себя
     asyncio.run(main())
+
