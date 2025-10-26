@@ -878,11 +878,6 @@ processing_bonus = set()
 async def bio_bonus_cb(callback: types.CallbackQuery):
     user_id = callback.from_user.id
     bot = callback.bot
-    data_subgram = await subgram_check_wrapper(user=callback.from_user, message=callback.message, action="subscribe")
-    if not data_subgram.get("skip"):
-        # Wrapper сам отправит сообщение, нужно только ответить на callback
-        await callback.answer()
-        return
     # 🔒 Защита от повторного нажатия
     if user_id in processing_bonus:
         await callback.answer("⏳ Бонус уже обрабатывается, подождите пару секунд...", show_alert=True)
@@ -1771,13 +1766,7 @@ async def withdraw_amount_choice(callback: types.CallbackQuery):
         )
         await callback.answer()
         return
-    
 
-        # --- 2. ПРОВЕРКА SUBGRAM ---
-    data_subgram = await subgram_check_wrapper(user=callback.from_user, message=callback.message, action="subscribe")
-    if not data_subgram.get("skip"):
-        # Если subgram_check_wrapper возвращает False, он обычно сам обрабатывает ответ
-        return
 
     if not user:
         await callback.message.answer("⚠️ Вы не зарегистрированы. Введите /start")
@@ -2968,12 +2957,7 @@ async def process_coupon_stars(message: types.Message):
 
 @router.callback_query(F.data == "activate_coupon")
 async def activate_coupon_cb(callback: types.CallbackQuery):
-    user_id = callback.from_user.id
-    data_subgram = await subgram_check_wrapper(user=callback.from_user, message=callback.message, action="subscribe")
-    if not data_subgram.get("skip"):
-        referrals.pop(user_id, None)
-        await callback.answer() # Снимаем ожидание с кнопки
-        return  
+    user_id = callback.from_user.id 
     referrals[user_id] = {"await_coupon": True}
     await callback.message.answer("Введите купон для активации:", reply_markup=backs_menu)
     await callback.answer() # Снимаем ожидание с кнопки
@@ -3869,12 +3853,7 @@ async def username_bonus_cb(callback: types.CallbackQuery):
 
 
         # --- 2. ПРОВЕРКА SUBGRAM ---
-        # Проверка SubGram
-        data_subgram = await subgram_check_wrapper(user=callback.from_user, message=callback.message, action="subscribe")
-        if not data_subgram.get("skip"):
-        # Wrapper сам отправит сообщение, нужно только ответить на callback
-            await callback.answer()
-            return
+        # Проверка SubGra
         # --- Дальше выдача бонуса за имя ---
         today = datetime.now().date().isoformat()
         last_username_bonus_date = user.get("last_username_bonus_date")
