@@ -46,8 +46,6 @@ FLYER_API_KEY = "FL-FGmfTH-XkeLIA-saTanu-siaBfs"
 GROUP_ID_TO_FORWARD = -1002961569525
 WITHDRAW_ID_TO_FORWARD = -1002557284206
 
-
-
 import aiohttp
 import logging
 # ...
@@ -1172,46 +1170,6 @@ def get_user_info(user: dict):
         "full_name": user.get("full_name")
     }
 
-@router.message(Command("setvip"))
-async def cmd_setvip(message: types.Message):
-    if message.from_user.id not in ADMIN_ID:
-        await message.answer("⛔ У вас нет прав на эту команду.")
-        return
-
-    parts = message.text.split()
-    if len(parts) != 3:
-        await message.answer("Использование: /setvip <user_id> <level>\nПример: /setvip 123456789 2\nДля снятия VIP: /setvip 123456789 0")
-        return
-
-    try:
-        uid = int(parts[1])
-        level = int(parts[2])
-        set_vip(uid, level)
-
-        if level == 0:
-            vip_text = "снята (отсутствует)"
-        elif level == 1:
-            vip_text = "I степени"
-        elif level == 2:
-            vip_text = "II степени"
-        elif level == 3:
-            vip_text = "III степени"
-        else:
-            vip_text = f"{level}-го уровня"
-
-        await message.answer(f"✅ Пользователю {uid} установлена VIP {vip_text}")
-
-        try:
-            if level == 0:
-                await message.bot.send_message(uid, "⚠️ Ваша VIP-подписка была снята администратором.")
-            else:
-                await message.bot.send_message(uid, f"🎉 Вам выдана новая VIP-подписка: <b>{vip_text}</b>!", parse_mode="HTML")
-        except:
-            pass
-
-    except Exception as e:
-        await message.answer(f"⛔️ Ошибка: {e}")
-
 
 @router.message(F.text == "📱 Профиль")
 async def profile(message: types.Message):
@@ -1258,8 +1216,7 @@ async def profile(message: types.Message):
         f"<b>🆔 ID: {info['user_id']}</b>\n"
         f"<b>──────────────</b>\n"
         f"💰 Баланс звезд: {info['stars']:.2f} ⭐️\n"
-        f"📌 Приглашено вами: {rewarded_referrals_count}\n"
-        f"💎 Ваша VIP-подписка: {vip_text}\n\n"
+        f"📌 Приглашено вами: {rewarded_referrals_count}\n\n"
         f"🔗<b> Ваша реферальная ссылка:</b>\n<code>{referral_link}</code>"
     )
     kb = get_profile_kb(user_id)
@@ -1386,8 +1343,7 @@ async def profile_cb(callback: types.CallbackQuery):
         f"<b>🆔 ID: {info['user_id']}</b>\n"
         f"<b>──────────────</b>\n"
         f"💰 Баланс звезд: {info['stars']:.2f} ⭐️\n"
-        f"📌 Приглашено вами: {rewarded_referrals_count}\n"
-        f"💎 Ваша VIP-подписка: {vip_text}\n\n"
+        f"📌 Приглашено вами: {rewarded_referrals_count}\n\n"
         f"🔗<b> Ваша реферальная ссылка:</b>\n<code>{referral_link}</code>"
     )
     kb = get_profile_kb(user_id)
