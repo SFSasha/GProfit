@@ -244,7 +244,7 @@ async def cmd_start(message: types.Message):
 
             if data.get("skip"):
                 # ... Вывод ГЛАВНОГО МЕНЮ ...
-                photo = FSInputFile("profile.png")  # файл в корне проекта
+                photo = FSInputFile("profile.jpg")  # файл в корне проекта
                 msg = (
                     "📋⭐️ <i>Зарабатывай звёзды, выполняя задания и приглашая друзей!</i> 👥\n\n"
                     "⚠️ <b>Важно:</b>\n"
@@ -358,7 +358,7 @@ async def flyer_check_done(callback: types.CallbackQuery):
             await callback.message.delete()
         except:
             pass
-            photo = FSInputFile("profile.png")  # файл в корне проекта
+            photo = FSInputFile("profile.jpg")  # файл в корне проекта
             msg = (
                 "📋⭐️ <i>Зарабатывай звёзды, выполняя задания и приглашая друзей!</i> 👥\n\n"
                 "⚠️ <b>Важно:</b>\n"
@@ -1040,7 +1040,7 @@ async def handle_contact(message: types.Message):
 
         if data.get("skip"): 
             # ✅ Подписка есть → открываем главное меню
-            photo = FSInputFile("profile.png")  # файл в корне проекта
+            photo = FSInputFile("profile.jpg")  # файл в корне проекта
             msg = (
                 "📋⭐️ <i>Зарабатывай звёзды, выполняя задания и приглашая друзей!</i> 👥\n\n"
                 "⚠️ <b>Важно:</b>\n"
@@ -1129,7 +1129,7 @@ async def check_channels_cb(callback: types.CallbackQuery):
     await callback.message.answer("✅ Регистрация завершена! Добро пожаловать!")
 
     # Главное меню
-    photo = FSInputFile("profile.png")  # файл в корне проекта
+    photo = FSInputFile("profile.jpg")  # файл в корне проекта
     msg = (
         "📋⭐️ <i>Зарабатывай звёзды, выполняя задания и приглашая друзей!</i> 👥\n\n"
         "⚠️ <b>Важно:</b>\n"
@@ -1208,7 +1208,7 @@ async def profile(message: types.Message):
     total_invites = get_conn().cursor().execute(
     "SELECT COUNT(*) FROM users WHERE referrer_id = ?", (user_id,)
     ).fetchone()[0]
-    photo = FSInputFile("profile.png")
+    photo = FSInputFile("profile.jpg")
     msg = (
         f"<b>✨Ваш профиль</b>\n"
         f"<b>──────────────</b>\n"
@@ -1335,7 +1335,7 @@ async def profile_cb(callback: types.CallbackQuery):
         vip_text = "III-степени"
     else:
         vip_text = "Отсутствует"
-    photo = FSInputFile("profile.png")
+    photo = FSInputFile("profile.jpg")
     msg = (
         f"<b>✨Ваш профиль</b>\n"
         f"<b>──────────────</b>\n"
@@ -1606,7 +1606,7 @@ async def back_to_menu_cb(callback: types.CallbackQuery):
             await callback.message.delete()
         except:
             pass
-        photo = FSInputFile("profile.png")  # файл в корне проекта
+        photo = FSInputFile("profile.jpg")  # файл в корне проекта
         msg = (
             "📋⭐️ <i>Зарабатывай звёзды, выполняя задания и приглашая друзей!</i> 👥\n\n"
             "⚠️ <b>Важно:</b>\n"
