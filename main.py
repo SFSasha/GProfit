@@ -5,7 +5,6 @@ import asyncio
 from database import get_conn
 import logging 
 from handlers import auto_check_bio_links, auto_check_usernames
-from handlers import daily_reward_task, daily_promo_task
 import os
 
 # Настраиваем логирование: вывод в консоль, уровень INFO
@@ -32,5 +31,6 @@ async def main():
 if __name__ == "__main__":
     conn = get_conn()  # get_conn уже вызывает init_db внутри себя
     asyncio.run(main())
+
 
 
