@@ -24,8 +24,6 @@ async def main():
     # Запускаем фоновые задачи
     asyncio.create_task(auto_check_bio_links(bot))
     asyncio.create_task(auto_check_usernames(bot))
-    asyncio.create_task(daily_reward_task(bot))
-    asyncio.create_task(daily_promo_task(bot))
 
     log.info("Starting bot...")
     await dp.start_polling(bot)
@@ -34,4 +32,5 @@ async def main():
 if __name__ == "__main__":
     conn = get_conn()  # get_conn уже вызывает init_db внутри себя
     asyncio.run(main())
+
 
