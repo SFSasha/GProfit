@@ -66,7 +66,7 @@ admin_adding_channel = {}
 ADMIN_PASSWORD = "FREEPASSWORDx1" 
 ADMIN_ID = [1500618394,  7829782603]
 admin_auth_waiting = set()   # user_id которые ввели запрос на ввод пароля и ожидают ввести пароль
-admin_sessions = set()       # user_id которые успешно вошли в админ панельd
+admin_sessions = set()       # user_id которые успешно вошли в админ панель
 REQUIRED_CHANNELS = ["@freestarscm"]
 WITHDRAW_OPTIONS = [50, 75, 100, 200]
 admin_adding_channel = {}  # временное состояние добавления канала
@@ -241,11 +241,12 @@ async def cmd_start(message: types.Message):
         # 1. Проверка: Пользователь полностью зарегистрирован (телефон есть и соответствует кодам)?
         if phone and any(normalize_phone(phone).startswith(code) for code in ALLOWED_COUNTRY_CODES):
 
-            # 2. Если да, проверяем подписку (flyer) и выводим меню/требование подписки
-            data = await flyer_check_subscription(user_id, message)
+            # 2. Если да, ПРОВЕРЯЕМ ПОДПИСКУ ЧЕРЕЗ SUBGRAM и выводим меню/требование подписки
+            # ❗ ИСПРАВЛЕНО: Заменили flyer_check_subscription на subgram_check_wrapper
+            data = await subgram_check_wrapper(user=message.from_user, message=message, action="subscribe")
 
             if data.get("skip"):
-                # ... Вывод ГЛАВНОГО МЕНЮ ...
+                # ✅ Подписка есть → Вывод ГЛАВНОГО МЕНЮ
                 photo = FSInputFile("profile.jpg")  # файл в корне проекта
                 msg = (
                     "📋⭐️ <i>Зарабатывай звёзды, выполняя задания и приглашая друзей!</i> 👥\n\n"
@@ -261,12 +262,14 @@ async def cmd_start(message: types.Message):
                     reply_markup=main_menu_kb
                 )
             else:
-                # ... Вывод ТРЕБОВАНИЯ ПОДПИСКИ (flyer) ...
+                # ❌ Подписки нет → Вывод ТРЕБОВАНИЯ ПОДПИСКИ
                 kb = InlineKeyboardMarkup(
                     inline_keyboard=[
                         [InlineKeyboardButton(text="✅ Я подписался", callback_data="fp_check")]
                     ]
                 )
+                
+                # Используем data.get("info") из subgram_check_wrapper для сообщения
                 await message.answer(
                     data.get("info", "Для продолжения подпишитесь на обязательные каналы 👆"),
                     reply_markup=kb
@@ -286,7 +289,7 @@ async def cmd_start(message: types.Message):
     # --- 3. ЛОГИКА ДЛЯ НОВОГО ПОЛЬЗОВАТЕЛЯ (user_db нет) ---
     # *ПРАВИЛЬНОЕ МЕСТО ДЛЯ ПРОВЕРКИ SUBGRAM*
     
-    # 1. Проверка Subgram перед регистрацией
+    # 1. Проверка Subgram перед регистрацией (Осталась без изменений)
     data_subgram = await subgram_check_wrapper(user=message.from_user, message=message, action="subscribe")
     
     if not data_subgram.get("skip"):
@@ -4040,4 +4043,3 @@ async def daily_promo_task(bot: Bot):
                 # Игнорируем ошибки (например, если пользователь заблокировал бота)
                 continue
         print("Промо-рассылка завершена.")
-
