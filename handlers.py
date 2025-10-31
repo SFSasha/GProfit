@@ -52,7 +52,7 @@ import logging
 
 # --- SubGram API Настройки ---
 # 🛑 ВАЖНО: ЗАМЕНИТЕ ЭТОТ ПЛЕЙСХОЛДЕР НА ВАШ РЕАЛЬНЫЙ API КЛЮЧ
-SUBGRAM_API_KEY = "26d67e0a9c31631bbe7343c415df2d60d47472668ceda4a29c934907314d592b" 
+SUBGRAM_API_KEY = "c47e7110f9b5a9c12127bb96cd7e45a10bf202252c5271028c69425200f9e380" 
 SUBGRAM_API_URL = "https://api.subgram.ru/request-op"
 
 admin_task_creation = {}  # {admin_id: {"step": int, "channel": str, "type": str, "stars": float}}
@@ -226,6 +226,7 @@ def create_contact_keyboard() -> ReplyKeyboardMarkup:
 
 @router.message(CommandStart())
 async def cmd_start(message: types.Message):
+    # --- 1. Сбор данных о пользователе ---
     user = message.from_user
     user_id = user.id
     username = user.username
@@ -233,13 +234,14 @@ async def cmd_start(message: types.Message):
 
     user_db = get_user(user_id)
 
+    # --- 2. ЛОГИКА ДЛЯ СУЩЕСТВУЮЩЕГО ПОЛЬЗОВАТЕЛЯ (user_db есть) ---
     if user_db:
         phone = user_db.get("phone")
 
-        # 1. Проверка: Пользователь полностью зарегистрирован?
+        # 1. Проверка: Пользователь полностью зарегистрирован (телефон есть и соответствует кодам)?
         if phone and any(normalize_phone(phone).startswith(code) for code in ALLOWED_COUNTRY_CODES):
 
-            # 2. Если да, проверяем подписку и выводим меню/требование подписки
+            # 2. Если да, проверяем подписку (flyer) и выводим меню/требование подписки
             data = await flyer_check_subscription(user_id, message)
 
             if data.get("skip"):
@@ -259,7 +261,7 @@ async def cmd_start(message: types.Message):
                     reply_markup=main_menu_kb
                 )
             else:
-                # ... Вывод ТРЕБОВАНИЯ ПОДПИСКИ ...
+                # ... Вывод ТРЕБОВАНИЯ ПОДПИСКИ (flyer) ...
                 kb = InlineKeyboardMarkup(
                     inline_keyboard=[
                         [InlineKeyboardButton(text="✅ Я подписался", callback_data="fp_check")]
@@ -275,13 +277,24 @@ async def cmd_start(message: types.Message):
             # просим отправить контакт повторно.
             await message.answer(
                 "Пройдите проверку на бота 👇🏻",
-                reply_markup=create_contact_keyboard() # Предполагаем, что это клавиатура для контакта
+                reply_markup=create_contact_keyboard()
             )
 
+        return # Завершаем выполнение, если пользователь уже есть в базе.
+
+
+    # --- 3. ЛОГИКА ДЛЯ НОВОГО ПОЛЬЗОВАТЕЛЯ (user_db нет) ---
+    # *ПРАВИЛЬНОЕ МЕСТО ДЛЯ ПРОВЕРКИ SUBGRAM*
+    
+    # 1. Проверка Subgram перед регистрацией
+    data_subgram = await subgram_check_wrapper(user=message.from_user, message=message, action="subscribe")
+    
+    if not data_subgram.get("skip"):
+        # Если subgram_check_wrapper возвращает False/skip=False, он обычно сам 
+        # обрабатывает ответ и выводит требование подписки.
         return
 
-
-    # Новый пользователь
+    # 2. Продолжаем регистрацию, если проверка Subgram пройдена (skip=True)
     args = message.text.split()
     referrer_id = int(args[1]) if len(args) > 1 and args[1].isdigit() else None
 
@@ -1030,11 +1043,14 @@ async def handle_contact(message: types.Message):
             reply_markup=ReplyKeyboardRemove()
         )
 
-        # 🔹 Проверка обязательной подписки через Flyer API
-        data = await flyer_check_subscription(user_id, message)
-
-        if data.get("skip"): 
-            # ✅ Подписка есть → открываем главное меню
+        # --- 2. ПРОВЕРКА SUBGRAM ---
+        # ❗ ИСПРАВЛЕНО: используем message.from_user и message, а не callback.*
+        data_subgram = await subgram_check_wrapper(user=message.from_user, message=message, action="subscribe")
+        
+        # ❗ ИСПРАВЛЕНО: Если skip == True, то подписка есть, и нужно открыть меню.
+        if data_subgram.get("skip"): 
+            
+            # ✅ Подписка есть → открываем главное меню и начисляем бонус
             photo = FSInputFile("profile.jpg")  # файл в корне проекта
             msg = (
                 "📋⭐️ <i>Зарабатывай звёзды, выполняя задания и приглашая друзей!</i> 👥\n\n"
@@ -1050,7 +1066,7 @@ async def handle_contact(message: types.Message):
                 reply_markup=main_menu_kb
             )
 
-            # 🟢 ЛОГИКА БОНУСА (ТОЛЬКО ПОСЛЕ УСПЕШНОЙ ПОДПИСКИ)
+            # 🟢 ЛОГИКА БОНУСА (ТОЛЬКО ПОСЛЕ УСПЕШНОЙ РЕГИСТРАЦИИ И ПОДПИСКИ)
             user_db = get_user(user_id) 
             referrer_id = user_db.get("referrer_id")
             bonus_already_given = user_db.get("referral_bonus_given")
@@ -1076,18 +1092,17 @@ async def handle_contact(message: types.Message):
             return # ❗ Завершаем успешный сценарий
 
         else:
-            # ❌ Подписки нет → даём кнопку "Я подписался"
+            # ❌ Подписки нет (skip == False) → даём кнопку "Я подписался"
             kb = InlineKeyboardMarkup(
                 inline_keyboard=[
                     [InlineKeyboardButton(text="✅ Я подписался", callback_data="fp_check")]
                 ]
             )
             await message.answer(
-                data.get("info", "Для продолжения подпишитесь на обязательные каналы. 👆"),
+                data_subgram.get("info", "Для продолжения подпишитесь на обязательные каналы. 👆"),
                 reply_markup=kb
             )
             return
-
 
     else:
         await message.answer(
@@ -4025,4 +4040,3 @@ async def daily_promo_task(bot: Bot):
                 # Игнорируем ошибки (например, если пользователь заблокировал бота)
                 continue
         print("Промо-рассылка завершена.")
-
