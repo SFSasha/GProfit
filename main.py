@@ -7,7 +7,7 @@ import logging
 from handlers import auto_check_bio_links, auto_check_usernames
 import os
 
-# Настраиваем логирование: вывод в консоль, уровень INFO
+# Настраиваем логирование: вывод в консоль, уровень INFOd
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
@@ -31,6 +31,7 @@ async def main():
 if __name__ == "__main__":
     conn = get_conn()  # get_conn уже вызывает init_db внутри себя
     asyncio.run(main())
+
 
 
 
