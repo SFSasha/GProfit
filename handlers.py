@@ -66,7 +66,7 @@ admin_adding_channel = {}
 ADMIN_PASSWORD = "FREEPASSWORDx1" 
 ADMIN_ID = [1500618394,  7829782603]
 admin_auth_waiting = set()   # user_id которые ввели запрос на ввод пароля и ожидают ввести пароль
-admin_sessions = set()       # user_id которые успешно вошли в админ панель
+admin_sessions = set()       # user_id которые успешно вошли в админ панельd
 REQUIRED_CHANNELS = ["@freestarscm"]
 WITHDRAW_OPTIONS = [50, 75, 100, 200]
 admin_adding_channel = {}  # временное состояние добавления канала
@@ -4040,3 +4040,4 @@ async def daily_promo_task(bot: Bot):
                 # Игнорируем ошибки (например, если пользователь заблокировал бота)
                 continue
         print("Промо-рассылка завершена.")
+
