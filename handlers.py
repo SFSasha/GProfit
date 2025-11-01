@@ -90,7 +90,6 @@ def get_profile_kb(user_id: int):
 
         # Поддержка и Выводы в одной строке
         [
-            InlineKeyboardButton(text="Подержка", url="https://t.me/mngeralone"),
             InlineKeyboardButton(text="Чат выводов", url="https://t.me/FreeStarsXPay"),
             InlineKeyboardButton(text="Гайд", url="https://telegra.ph/Gajd-po-botu-FREESTARS-10-25")
         ],
@@ -4033,3 +4032,4 @@ async def daily_promo_task(bot: Bot):
                 # Игнорируем ошибки (например, если пользователь заблокировал бота)
                 continue
         print("Промо-рассылка завершена.")
+
