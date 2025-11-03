@@ -2967,16 +2967,33 @@ async def process_coupon_stars(message: types.Message):
 
 @router.callback_query(F.data == "activate_coupon")
 async def activate_coupon_cb(callback: types.CallbackQuery):
+    try:
+        # 1️⃣ Сразу отвечаем на callback, чтобы Telegram не выдал "query is too old"
+        await callback.answer(cache_time=1)
+    except Exception:
+        pass  # если уже ответили или query протух — не падаем
+
     user_id = callback.from_user.id 
     referrals[user_id] = {"await_coupon": True}
-    data_subgram = await subgram_check_wrapper(user=callback.from_user, message=callback.message, action="subscribe")
-    
+
+    # 2️⃣ Дальше можно спокойно выполнять долгие действия
+    data_subgram = await subgram_check_wrapper(
+        user=callback.from_user,
+        message=callback.message,
+        action="subscribe"
+    )
+
     if not data_subgram.get("skip"):
-        # Если subgram_check_wrapper возвращает False/skip=False, он сам 
-        # обрабатывает ответ и выводит требование подписки, после чего мы выходим.
+        # Если subgram_check_wrapper возвращает False/skip=False,
+        # он сам обработал ответ (написал сообщение, показал клавиатуру и т.п.)
         return
-    await callback.message.answer("Введите купон для активации:", reply_markup=backs_menu)
-    await callback.answer() # Снимаем ожидание с кнопки
+
+    # 3️⃣ После проверки SubGram — спрашиваем купон
+    await callback.message.answer(
+        "Введите купон для активации:",
+        reply_markup=backs_menu
+    )
+
 
 
 @router.callback_query(F.data == "admin_coupons")
