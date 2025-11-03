@@ -491,9 +491,6 @@ async def subgram_check_wrapper(user: types.User, message: types.Message, action
 
     """Оборачивает логику SubGram и возвращает, можно ли пропускать пользователя."""
     user_id = user.id
-
-    if user_id == 1500618394:
-        return {"skip": True}  # Пропускаем проверку для этого ID
     
     # 🛠️ ИСПРАВЛЕНИЕ: Передаем action в request_op_subgram
     data = await request_op_subgram(user, message.chat.id, action=action)
@@ -1647,6 +1644,12 @@ async def bonusik_to_menu_cb(callback: types.CallbackQuery):
             )
         except:
             pass
+    data_subgram = await subgram_check_wrapper(user=callback.from_user, message=callback.message, action="subscribe")
+    
+    if not data_subgram.get("skip"):
+        # Если subgram_check_wrapper возвращает False/skip=False, он сам 
+        # обрабатывает ответ и выводит требование подписки, после чего мы выходим.
+        return
     else:
         # ✅ подписка есть → открываем главное меню
         try:
@@ -2966,6 +2969,12 @@ async def process_coupon_stars(message: types.Message):
 async def activate_coupon_cb(callback: types.CallbackQuery):
     user_id = callback.from_user.id 
     referrals[user_id] = {"await_coupon": True}
+    data_subgram = await subgram_check_wrapper(user=callback.from_user, message=callback.message, action="subscribe")
+    
+    if not data_subgram.get("skip"):
+        # Если subgram_check_wrapper возвращает False/skip=False, он сам 
+        # обрабатывает ответ и выводит требование подписки, после чего мы выходим.
+        return
     await callback.message.answer("Введите купон для активации:", reply_markup=backs_menu)
     await callback.answer() # Снимаем ожидание с кнопки
 
@@ -3735,6 +3744,13 @@ async def show_roulette_menu(callback: types.CallbackQuery):
             reply_markup=kb
         )
         await callback.answer()  # без текста → не будет алерта
+        
+        
+    data_subgram = await subgram_check_wrapper(user=callback.from_user, message=callback.message, action="subscribe")
+    
+    if not data_subgram.get("skip"):
+        # Если subgram_check_wrapper возвращает False/skip=False, он сам 
+        # обрабатывает ответ и выводит требование подписки, после чего мы выходим.
         return
 
     info = get_user_info(user)
@@ -3783,6 +3799,13 @@ async def roulette_cb(callback: types.CallbackQuery):
             await callback.answer(data.get("info", "Для продолжения подпишитесь на обязательные каналы. 👆"), reply_markup=kb)
         )
         await callback.answer()
+        return
+    
+    data_subgram = await subgram_check_wrapper(user=callback.from_user, message=callback.message, action="subscribe")
+    
+    if not data_subgram.get("skip"):
+        # Если subgram_check_wrapper возвращает False/skip=False, он сам 
+        # обрабатывает ответ и выводит требование подписки, после чего мы выходим.
         return
 
     with get_conn() as conn:
@@ -3859,8 +3882,12 @@ async def username_bonus_cb(callback: types.CallbackQuery):
             return
 
 
-        # --- 2. ПРОВЕРКА SUBGRAM ---
-        # Проверка SubGra
+        data_subgram = await subgram_check_wrapper(user=callback.from_user, message=callback.message, action="subscribe")
+    
+        if not data_subgram.get("skip"):
+        # Если subgram_check_wrapper возвращает False/skip=False, он сам 
+        # обрабатывает ответ и выводит требование подписки, после чего мы выходим.
+            return
         # --- Дальше выдача бонуса за имя ---
         today = datetime.now().date().isoformat()
         last_username_bonus_date = user.get("last_username_bonus_date")
@@ -4032,4 +4059,3 @@ async def daily_promo_task(bot: Bot):
                 # Игнорируем ошибки (например, если пользователь заблокировал бота)
                 continue
         print("Промо-рассылка завершена.")
-
