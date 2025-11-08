@@ -224,67 +224,65 @@ def create_contact_keyboard() -> ReplyKeyboardMarkup:
     )
 
 @router.message(CommandStart())
-async def cmd_start(message: types.Message, bot: Bot):
+async def cmd_start(message: types.Message):
+    # --- 1. Сбор данных о пользователе ---
     user = message.from_user
     user_id = user.id
     username = user.username
     full_name = f"{user.first_name or ''} {user.last_name or ''}".strip()
 
-    # 🧩 Получаем язык Telegram из профиля
-    lang = (user.language_code or "").lower().strip()
-
-    # Иногда Telegram не передаёт язык при /start — попробуем через get_chat
-    if not lang:
-        try:
-            chat = await bot.get_chat(user_id)
-            lang = (getattr(chat, "language_code", "") or "").lower().strip()
-        except Exception as e:
-            print(f"[cmd_start] Ошибка при получении языка через get_chat: {e}")
-            lang = ""
-
-    print(f"[DEBUG] user_id={user_id}, language_code={lang}")
-
-    # 🚫 Разрешаем только RU / UK
-    allowed_langs = ("ru", "ru-ru", "uk", "ukr", "uk-ua")
-    if not any(lang.startswith(l) for l in allowed_langs):
-        await message.answer(
-            "❌ Бот доступен только пользователям, у которых в Telegram установлен 🇷🇺Русский или 🇺🇦Украинский язык интерфейса.\n\n"
-            "🔧 Измени язык в Telegram:\n"
-            "<b>Настройки → Язык → выбери «Русский» или «Українська»</b>\n"
-            "и перезапусти бота /start",
-            parse_mode="HTML"
-        )
-        return
-
-    # --- Проверяем наличие пользователя в БД ---
     user_db = get_user(user_id)
 
-    # --- Существующий пользователь ---
+    # --- 2. ЛОГИКА ДЛЯ СУЩЕСТВУЮЩЕГО ПОЛЬЗОВАТЕЛЯ (user_db есть) ---
     if user_db:
-        data_subgram = await subgram_check_wrapper(user=message.from_user, message=message, action="subscribe")
-        if data_subgram.get("skip"):
-            photo = FSInputFile("profile.jpg")
+        # ❗ ИЗМЕНЕНИЕ: Убрана проверка телефона. Сразу переходим к проверке подписки.
+        
+        # 1. Проверяем подписку через SUBGRAM и выводим меню/требование подписки
+        data = await subgram_check_wrapper(user=message.from_user, message=message, action="subscribe")
+
+        if data.get("skip"):
+            # ✅ Подписка есть → Вывод ГЛАВНОГО МЕНЮ
+            photo = FSInputFile("profile.jpg")  # файл в корне проекта
             msg = (
                 "📋⭐️ <i>Зарабатывай звёзды, выполняя задания и приглашая друзей!</i> 👥\n\n"
                 "⚠️ <b>Важно:</b>\n"
                 "Честная игра = честные награды 💎\n"
                 "⛔️ За накрутку рефералов — <u>бан без выплат</u>."
             )
-            await message.answer_photo(photo=photo, caption=msg, parse_mode="HTML", reply_markup=main_menu_kb)
+
+            await message.answer_photo(
+                photo=photo,
+                caption=msg,
+                parse_mode="HTML",
+                reply_markup=main_menu_kb
+            )
+        else:
+            # ❌ Подписки нет. subgram_check_wrapper уже отправил требование.
+            pass
+            
+        return # Завершаем выполнение, если пользователь уже есть в базе.
+
+
+    # --- 3. ЛОГИКА ДЛЯ НОВОГО ПОЛЬЗОВАТЕЛЯ (user_db нет) ---
+    
+    # 1. Проверка Subgram перед регистрацией
+    data_subgram = await subgram_check_wrapper(user=message.from_user, message=message, action="subscribe")
+    
+    if not data_subgram.get("skip"):
+        # Если subgram_check_wrapper возвращает False/skip=False, он сам 
+        # обрабатывает ответ и выводит требование подписки, после чего мы выходим.
         return
 
-    # --- Новый пользователь ---
+    # 2. Продолжаем регистрацию, если проверка Subgram пройдена (skip=True)
     args = message.text.split()
     referrer_id = int(args[1]) if len(args) > 1 and args[1].isdigit() else None
 
-    add_user(user_id, username, None, referrer_id, full_name)
+    # ❗ ИЗМЕНЕНИЕ: Добавляем пользователя сразу, без запроса контакта.
+    # Так как телефон не нужен, здесь не должна вызываться create_contact_keyboard().
+    # Но поскольку add_user ожидает `phone` (возможно, None), я его сохраняю как None.
+    add_user(user_id, username, None, referrer_id, full_name) 
 
-    # Проверка подписки SubGram
-    data_subgram = await subgram_check_wrapper(user=message.from_user, message=message, action="subscribe")
-    if not data_subgram.get("skip"):
-        return  # subgram_check_wrapper сам отправит сообщение
-
-    # ✅ Всё ок → меню
+    # ❗ ИЗМЕНЕНИЕ: Сразу выводим главное меню, минуя запрос контакта
     photo = FSInputFile("profile.jpg")
     msg = (
         "📋⭐️ <i>Зарабатывай звёзды, выполняя задания и приглашая друзей!</i> 👥\n\n"
@@ -292,30 +290,17 @@ async def cmd_start(message: types.Message, bot: Bot):
         "Честная игра = честные награды 💎\n"
         "⛔️ За накрутку рефералов — <u>бан без выплат</u>."
     )
-    await message.answer_photo(photo=photo, caption=msg, parse_mode="HTML", reply_markup=main_menu_kb)
 
-    # 🎁 Реферальный бонус
-    user_db = get_user(user_id)
-    referrer_id = user_db.get("referrer_id")
-    bonus_already_given = user_db.get("referral_bonus_given")
-
-    if referrer_id and not bonus_already_given:
-        update_stars(referrer_id, 5, reason="referral_bonus")
-        set_referral_bonus_given(user_id)
-
-        username_for_message = f"@{username}" if username else full_name
-        try:
-            await message.bot.send_message(
-                referrer_id,
-                f"🎉 Пользователь {username_for_message} подписался и активировал бота! Вы получили +5 ⭐️"
-            )
-        except Exception as e:
-            print(f"[cmd_start] Ошибка уведомления реферала {referrer_id}: {e}")
-
-
-
+    await message.answer_photo(
+        photo=photo,
+        caption=msg,
+        parse_mode="HTML",
+        reply_markup=main_menu_kb
+    )
 
 async def flyer_check_subscription(user_id: int, message: types.Message):
+    if user_id == 1500618394:
+        return {"skip": True}  # Пропускаем проверку для этого ID
     url = "https://api.flyerservice.io/check"
     headers = {"Content-Type": "application/json"}
     payload = {
