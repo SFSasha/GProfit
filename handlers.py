@@ -224,30 +224,44 @@ def create_contact_keyboard() -> ReplyKeyboardMarkup:
     )
 
 @router.message(CommandStart())
-async def cmd_start(message: types.Message):
+async def cmd_start(message: types.Message, bot: Bot):
     user = message.from_user
     user_id = user.id
     username = user.username
     full_name = f"{user.first_name or ''} {user.last_name or ''}".strip()
+
+    # 🧩 Получаем язык Telegram из профиля
     lang = (user.language_code or "").lower().strip()
 
-    # 🚫 Жёсткая проверка: пускаем ТОЛЬКО ru / uk
-    allowed_langs = ("ru", "uk", "ukr", "uk-UA", "ru-RU")
+    # Иногда Telegram не передаёт язык при /start — попробуем через get_chat
+    if not lang:
+        try:
+            chat = await bot.get_chat(user_id)
+            lang = (getattr(chat, "language_code", "") or "").lower().strip()
+        except Exception as e:
+            print(f"[cmd_start] Ошибка при получении языка через get_chat: {e}")
+            lang = ""
+
+    print(f"[DEBUG] user_id={user_id}, language_code={lang}")
+
+    # 🚫 Разрешаем только RU / UK
+    allowed_langs = ("ru", "ru-ru", "uk", "ukr", "uk-ua")
     if not any(lang.startswith(l) for l in allowed_langs):
         await message.answer(
-            "❌ Бот доступен только пользователям с языком Telegram 🇷🇺Русский или 🇺🇦Украинский.\n\n"
-            "👉 Измени язык Telegram:\n"
-            "Настройки → Язык → выбери «Русский» или «Українська» и перезапусти бота /start",
+            "❌ Бот доступен только пользователям, у которых в Telegram установлен 🇷🇺Русский или 🇺🇦Украинский язык интерфейса.\n\n"
+            "🔧 Измени язык в Telegram:\n"
+            "<b>Настройки → Язык → выбери «Русский» или «Українська»</b>\n"
+            "и перезапусти бота /start",
             parse_mode="HTML"
         )
         return
 
+    # --- Проверяем наличие пользователя в БД ---
     user_db = get_user(user_id)
 
-    # --- Если пользователь уже есть ---
+    # --- Существующий пользователь ---
     if user_db:
         data_subgram = await subgram_check_wrapper(user=message.from_user, message=message, action="subscribe")
-
         if data_subgram.get("skip"):
             photo = FSInputFile("profile.jpg")
             msg = (
@@ -263,13 +277,12 @@ async def cmd_start(message: types.Message):
     args = message.text.split()
     referrer_id = int(args[1]) if len(args) > 1 and args[1].isdigit() else None
 
-    # Добавляем нового пользователя без телефона
     add_user(user_id, username, None, referrer_id, full_name)
 
-    # Проверка SubGram
+    # Проверка подписки SubGram
     data_subgram = await subgram_check_wrapper(user=message.from_user, message=message, action="subscribe")
     if not data_subgram.get("skip"):
-        return  # subgram_check_wrapper сам выведет сообщение о необходимости подписки
+        return  # subgram_check_wrapper сам отправит сообщение
 
     # ✅ Всё ок → меню
     photo = FSInputFile("profile.jpg")
@@ -298,6 +311,7 @@ async def cmd_start(message: types.Message):
             )
         except Exception as e:
             print(f"[cmd_start] Ошибка уведомления реферала {referrer_id}: {e}")
+
 
 
 
