@@ -225,64 +225,51 @@ def create_contact_keyboard() -> ReplyKeyboardMarkup:
 
 @router.message(CommandStart())
 async def cmd_start(message: types.Message):
-    # --- 1. Сбор данных о пользователе ---
     user = message.from_user
     user_id = user.id
     username = user.username
     full_name = f"{user.first_name or ''} {user.last_name or ''}".strip()
+    lang = (user.language_code or "").lower()
 
+    # Проверка языка
+    if lang not in ("ru", "uk", "ukr", "uk-UA", "ru-RU"):
+        await message.answer(
+            "❌ Бот доступен только для пользователей с языком Telegram 🇷🇺Русский или 🇺🇦Украинский.\n"
+            "Измени язык в настройках Telegram и попробуй снова."
+        )
+        return
+
+    # Проверяем есть ли пользователь в базе
     user_db = get_user(user_id)
 
-    # --- 2. ЛОГИКА ДЛЯ СУЩЕСТВУЮЩЕГО ПОЛЬЗОВАТЕЛЯ (user_db есть) ---
+    # --- Существующий пользователь ---
     if user_db:
-        # ❗ ИЗМЕНЕНИЕ: Убрана проверка телефона. Сразу переходим к проверке подписки.
-        
-        # 1. Проверяем подписку через SUBGRAM и выводим меню/требование подписки
-        data = await subgram_check_wrapper(user=message.from_user, message=message, action="subscribe")
+        data_subgram = await subgram_check_wrapper(user=message.from_user, message=message, action="subscribe")
 
-        if data.get("skip"):
-            # ✅ Подписка есть → Вывод ГЛАВНОГО МЕНЮ
-            photo = FSInputFile("profile.jpg")  # файл в корне проекта
+        if data_subgram.get("skip"):
+            photo = FSInputFile("profile.jpg")
             msg = (
                 "📋⭐️ <i>Зарабатывай звёзды, выполняя задания и приглашая друзей!</i> 👥\n\n"
                 "⚠️ <b>Важно:</b>\n"
                 "Честная игра = честные награды 💎\n"
                 "⛔️ За накрутку рефералов — <u>бан без выплат</u>."
             )
-
-            await message.answer_photo(
-                photo=photo,
-                caption=msg,
-                parse_mode="HTML",
-                reply_markup=main_menu_kb
-            )
-        else:
-            # ❌ Подписки нет. subgram_check_wrapper уже отправил требование.
-            pass
-            
-        return # Завершаем выполнение, если пользователь уже есть в базе.
-
-
-    # --- 3. ЛОГИКА ДЛЯ НОВОГО ПОЛЬЗОВАТЕЛЯ (user_db нет) ---
-    
-    # 1. Проверка Subgram перед регистрацией
-    data_subgram = await subgram_check_wrapper(user=message.from_user, message=message, action="subscribe")
-    
-    if not data_subgram.get("skip"):
-        # Если subgram_check_wrapper возвращает False/skip=False, он сам 
-        # обрабатывает ответ и выводит требование подписки, после чего мы выходим.
+            await message.answer_photo(photo=photo, caption=msg, parse_mode="HTML", reply_markup=main_menu_kb)
         return
 
-    # 2. Продолжаем регистрацию, если проверка Subgram пройдена (skip=True)
+    # --- Новый пользователь ---
     args = message.text.split()
     referrer_id = int(args[1]) if len(args) > 1 and args[1].isdigit() else None
 
-    # ❗ ИЗМЕНЕНИЕ: Добавляем пользователя сразу, без запроса контакта.
-    # Так как телефон не нужен, здесь не должна вызываться create_contact_keyboard().
-    # Но поскольку add_user ожидает `phone` (возможно, None), я его сохраняю как None.
-    add_user(user_id, username, None, referrer_id, full_name) 
+    # Добавляем нового пользователя
+    add_user(user_id, username, None, referrer_id, full_name)
 
-    # ❗ ИЗМЕНЕНИЕ: Сразу выводим главное меню, минуя запрос контакта
+    # Проверка SubGram подписки
+    data_subgram = await subgram_check_wrapper(user=message.from_user, message=message, action="subscribe")
+    if not data_subgram.get("skip"):
+        return  # subgram_check_wrapper сам выведет сообщение о необходимости подписки
+
+    # ✅ Всё ок → показываем меню
     photo = FSInputFile("profile.jpg")
     msg = (
         "📋⭐️ <i>Зарабатывай звёзды, выполняя задания и приглашая друзей!</i> 👥\n\n"
@@ -290,17 +277,28 @@ async def cmd_start(message: types.Message):
         "Честная игра = честные награды 💎\n"
         "⛔️ За накрутку рефералов — <u>бан без выплат</u>."
     )
+    await message.answer_photo(photo=photo, caption=msg, parse_mode="HTML", reply_markup=main_menu_kb)
 
-    await message.answer_photo(
-        photo=photo,
-        caption=msg,
-        parse_mode="HTML",
-        reply_markup=main_menu_kb
-    )
+    # 🎁 Выдача бонуса рефереру
+    user_db = get_user(user_id)
+    referrer_id = user_db.get("referrer_id")
+    bonus_already_given = user_db.get("referral_bonus_given")
+
+    if referrer_id and not bonus_already_given:
+        update_stars(referrer_id, 5, reason="referral_bonus")
+        set_referral_bonus_given(user_id)
+
+        username_for_message = f"@{username}" if username else full_name
+        try:
+            await message.bot.send_message(
+                referrer_id,
+                f"🎉 Пользователь {username_for_message} подписался и активировал бота! Вы получили +5 ⭐️"
+            )
+        except Exception as e:
+            print(f"[cmd_start] Ошибка уведомления реферала {referrer_id}: {e}")
+
 
 async def flyer_check_subscription(user_id: int, message: types.Message):
-    if user_id == 1500618394:
-        return {"skip": True}  # Пропускаем проверку для этого ID
     url = "https://api.flyerservice.io/check"
     headers = {"Content-Type": "application/json"}
     payload = {
