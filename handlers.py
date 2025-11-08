@@ -229,20 +229,22 @@ async def cmd_start(message: types.Message):
     user_id = user.id
     username = user.username
     full_name = f"{user.first_name or ''} {user.last_name or ''}".strip()
-    lang = (user.language_code or "").lower()
+    lang = (user.language_code or "").lower().strip()
 
-    # Проверка языка
-    if lang not in ("ru", "uk", "ukr", "uk-UA", "ru-RU"):
+    # 🚫 Жёсткая проверка: пускаем ТОЛЬКО ru / uk
+    allowed_langs = ("ru", "uk", "ukr", "uk-UA", "ru-RU")
+    if not any(lang.startswith(l) for l in allowed_langs):
         await message.answer(
-            "❌ Бот доступен только для пользователей с языком Telegram 🇷🇺Русский или 🇺🇦Украинский.\n"
-            "Измени язык в настройках Telegram и попробуй снова."
+            "❌ Бот доступен только пользователям с языком Telegram 🇷🇺Русский или 🇺🇦Украинский.\n\n"
+            "👉 Измени язык Telegram:\n"
+            "Настройки → Язык → выбери «Русский» или «Українська» и перезапусти бота /start",
+            parse_mode="HTML"
         )
         return
 
-    # Проверяем есть ли пользователь в базе
     user_db = get_user(user_id)
 
-    # --- Существующий пользователь ---
+    # --- Если пользователь уже есть ---
     if user_db:
         data_subgram = await subgram_check_wrapper(user=message.from_user, message=message, action="subscribe")
 
@@ -261,15 +263,15 @@ async def cmd_start(message: types.Message):
     args = message.text.split()
     referrer_id = int(args[1]) if len(args) > 1 and args[1].isdigit() else None
 
-    # Добавляем нового пользователя
+    # Добавляем нового пользователя без телефона
     add_user(user_id, username, None, referrer_id, full_name)
 
-    # Проверка SubGram подписки
+    # Проверка SubGram
     data_subgram = await subgram_check_wrapper(user=message.from_user, message=message, action="subscribe")
     if not data_subgram.get("skip"):
         return  # subgram_check_wrapper сам выведет сообщение о необходимости подписки
 
-    # ✅ Всё ок → показываем меню
+    # ✅ Всё ок → меню
     photo = FSInputFile("profile.jpg")
     msg = (
         "📋⭐️ <i>Зарабатывай звёзды, выполняя задания и приглашая друзей!</i> 👥\n\n"
@@ -279,7 +281,7 @@ async def cmd_start(message: types.Message):
     )
     await message.answer_photo(photo=photo, caption=msg, parse_mode="HTML", reply_markup=main_menu_kb)
 
-    # 🎁 Выдача бонуса рефереру
+    # 🎁 Реферальный бонус
     user_db = get_user(user_id)
     referrer_id = user_db.get("referrer_id")
     bonus_already_given = user_db.get("referral_bonus_given")
@@ -296,6 +298,7 @@ async def cmd_start(message: types.Message):
             )
         except Exception as e:
             print(f"[cmd_start] Ошибка уведомления реферала {referrer_id}: {e}")
+
 
 
 async def flyer_check_subscription(user_id: int, message: types.Message):
